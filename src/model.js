@@ -9,6 +9,7 @@
 
 import { runsText } from "./render.js";
 
+// The namespace keeps the project's former name, newga: documents in use carry it.
 export const NS = "urn:newga:zitate:1";
 export const CITE_PREFIX = "zitat:";
 export const BIB_TAG = "literaturverzeichnis";

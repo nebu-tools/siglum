@@ -8,6 +8,8 @@
 //   C  Word reopens R's result: everything still current, citing goes on
 //
 //   npm run e2e        results in dist-e2e/{a,b,r,c}.docx
+//
+// Needs a tabellion checkout for gba.R and the templates: ../tabellion, or set TABELLION_DIR.
 import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -16,18 +18,19 @@ import { fileURLToPath } from "node:url";
 import { serve } from "../scripts/serve.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const repo = path.join(root, "..");
+const repo = path.resolve(process.env.TABELLION_DIR ?? path.join(root, "..", "tabellion"));
 const PS = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe";
 const PORT = 3187;
 const ADDIN_ID = /<Id>([^<]+)<\/Id>/.exec(fs.readFileSync(path.join(root, "manifest.xml"), "utf8"))[1];
-const TEMPLATE = fs.readdirSync(path.join(repo, "templates"), { withFileTypes: true }).map((d) => d.name).find((n) => /Modul3\.docx$/.test(n));
+const templates = path.join(repo, "templates");
+const TEMPLATE = fs.existsSync(templates) ? fs.readdirSync(templates).find((n) => /Modul3\.docx$/.test(n)) : undefined;
 
 if (!fs.existsSync(PS)) {
   console.error("Braucht WSL auf Windows mit Word.");
   process.exit(2);
 }
 if (!TEMPLATE) {
-  console.error("Modul-3-Vorlage fehlt: erst `rv run gba.R fetch`.");
+  console.error(`Modul-3-Vorlage fehlt in ${templates}: erst \`rv run gba.R fetch\` in tabellion, oder TABELLION_DIR setzen.`);
   process.exit(2);
 }
 

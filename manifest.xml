@@ -6,7 +6,7 @@
            xsi:type="TaskPaneApp">
   <Id>45fc7c0a-aeaf-4d53-978f-f66bb3185365</Id>
   <Version>{{VERSION}}</Version>
-  <ProviderName>newga</ProviderName>
+  <ProviderName>nebu-tools</ProviderName>
   <DefaultLocale>de-DE</DefaultLocale>
   <DisplayName DefaultValue="Zitate"/>
   <Description DefaultValue="Quellen suchen und zitieren, Literaturverzeichnisse automatisch pflegen."/>

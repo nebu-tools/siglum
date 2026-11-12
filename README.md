@@ -1,4 +1,4 @@
-# Zitate: citations in Word
+# siglum: citations in Word
 
 A Word add-in for citing sources in dossiers, as a replacement for EndNote's Cite While You Write. It works like citations in LaTeX: one library, a search box, and numbers and reference lists that keep themselves current.
 
@@ -26,7 +26,7 @@ A new citation follows the document's track-changes setting. Renumbering and the
 | Reference list | Block content control, tag `literaturverzeichnis` |
 | Library and citations | Custom XML part in namespace `urn:newga:zitate:1`, holding JSON `{"quellen": {key: CSL-JSON}, "zitate": {id: [{"id": key, "locator"?}]}}` |
 
-Without the add-in, Word shows the last text. Colleagues without it can still read and edit the document. newga's `outline` lists the citations and lists, and `apply` refuses to replace text that holds a citation unless the change sets `"zitate_loeschen": true`.
+Without the add-in, Word shows the last text. Colleagues without it can still read and edit the document. [tabellion](https://github.com/nebu-tools/tabellion)'s `outline` lists the citations and lists, and `apply` refuses to replace text that holds a citation unless the change sets `"zitate_loeschen": true`.
 
 ## Style
 
@@ -50,7 +50,7 @@ npm run serve
 
 Then sideload `dist/manifest.xml`. For Word for Windows, add a string value under `HKCU\Software\Microsoft\Office\16.0\WEF\Developer` that holds the manifest's path, and restart Word. Word for Windows accepts `http://localhost`. Every other address needs HTTPS.
 
-`npm run e2e` needs WSL on a Windows machine with Word, and the templates from `rv run gba.R fetch`. It sideloads the add-in for one Word window at a time, which opens three times. A test page in the pane uses the real pane like a user would, and the checks run in three steps:
+`npm run e2e` needs WSL on a Windows machine with Word, and a [tabellion](https://github.com/nebu-tools/tabellion) checkout next to this one (or `TABELLION_DIR`) with the templates from `rv run gba.R fetch`. It sideloads the add-in for one Word window at a time, which opens three times. A test page in the pane uses the real pane like a user would, and the checks run in three steps:
 
 1. An empty document: search, cite, markers, lists, deleting, pasting, track changes, and a DOI lookup.
 2. The G-BA Modul 3 template: reference lists for sections 3.1 and 3.2.
