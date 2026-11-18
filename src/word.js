@@ -9,7 +9,7 @@ import {
   emptyStore, storeToXml, storeFromXml, newId, citeTitle, findMarkers, mayTouch, plan, paragraphsOf,
 } from "./model.js";
 import { documentText, UserError } from "./messages.js";
-import { controlTexts } from "./ooxml.js";
+import { controlTexts, paragraphStyle, OoxmlError } from "./ooxml.js";
 
 // Hanging indent of bibliography entries, in points (1 cm).
 const HANG = 28.35;
@@ -74,10 +74,15 @@ async function openStore(context, session) {
  * getReviewedText costs about 90 ms per control in a large document and
  * gives a moved text both ways. So then the texts come from the body's OOXML,
  * which says what is inserted, deleted and moved, in one read.
+ *
+ * Throws an OoxmlError, before anything is written, when the OOXML is not
+ * well-formed or its controls are not the ones Word lists, in number and in
+ * the order of their tags: then the texts cannot be trusted, and a citation
+ * read as empty would be removed.
  */
 export async function readControls(context) {
   const all = citationControls(context);
-  all.load("items/tag,items/title,items/id,items/text,items/placeholderText");
+  all.load("items/tag,items/title,items/id,items/text");
   await context.sync();
   let tracked = true;
   try {
@@ -97,25 +102,15 @@ export async function readControls(context) {
     const ooxml = context.document.body.getOoxml();
     await context.sync();
     const ours = controlTexts(ooxml.value).filter((c) => isOurs(c));
-    if (ours.length === ccs.length && ours.every((c, i) => c.tag === ccs[i].tag)) texts = ours;
-    else texts = await reviewedTexts(context, ccs);
+    if (ours.length !== ccs.length || ours.some((c, i) => c.tag !== ccs[i].tag)) {
+      throw new OoxmlError("error.ooxmlMismatch", { listed: ccs.length, read: ours.length });
+    }
+    texts = ours;
   }
   const controls = ccs.map((cc, i) => (isCite(cc)
     ? { kind: "cite", tag: cc.tag, title: cc.title, current: texts[i].current, original: texts[i].original }
     : { kind: "bib", current: texts[i].current }));
   return { ccs, controls, all: all.items };
-}
-
-/** The texts from getReviewedText, for when the OOXML does not match the controls Word lists. */
-async function reviewedTexts(context, ccs) {
-  const r = ccs.map((cc) => [cc.getReviewedText("Current"), cc.getReviewedText("Original")]);
-  await context.sync();
-  // Word wraps a control's reviewed text in "<…>". An emptied control shows its placeholder.
-  const text = (cc, x) => {
-    const v = x.value.startsWith("<") && x.value.endsWith(">") ? x.value.slice(1, -1) : x.value;
-    return v === cc.placeholderText ? "" : v;
-  };
-  return ccs.map((cc, i) => ({ current: text(cc, r[i][0]), original: text(cc, r[i][1]) }));
 }
 
 function setFont(range, run) {
@@ -139,7 +134,7 @@ function writeRuns(target, runs) {
   runs.forEach((run, i) => setFont(target.insertText(run.text, i ? "End" : "Replace"), run));
 }
 
-const escapeXml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const escapeXml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const runXml = (run) => {
   const pr = [run.bold && "<w:b/>", run.italic && "<w:i/>", run.smallCaps && "<w:smallCaps/>", run.superscript && '<w:vertAlign w:val="superscript"/>', run.subscript && '<w:vertAlign w:val="subscript"/>'].filter(Boolean).join("");
   return run.text.split("\t").map((t, i) => (i ? `<w:r>${pr && `<w:rPr>${pr}</w:rPr>`}<w:tab/></w:r>` : "") + (t ? `<w:r>${pr && `<w:rPr>${pr}</w:rPr>`}<w:t xml:space="preserve">${escapeXml(t)}</w:t></w:r>` : "")).join("");
@@ -147,20 +142,15 @@ const runXml = (run) => {
 
 /**
  * A bibliography's entries as one OOXML package, each a paragraph with a
- * hanging indent and the paragraph properties `pPr` of the bibliography's
- * first paragraph, so its style stays. Word takes 300 entries in one piece in
+ * hanging indent and the paragraph style `style` of the bibliography's first
+ * paragraph (its style, not its list, indent or run properties), so its style
+ * stays. Word takes 300 entries in one piece in
  * a quarter of a second, against about 6 ms for each single entry.
  */
-function entriesOoxml(entries, pPr) {
-  const props = `<w:pPr>${pPr}<w:ind w:left="${Math.round(HANG * 20)}" w:hanging="${Math.round(HANG * 20)}"/></w:pPr>`;
+function entriesOoxml(entries, style) {
+  const props = `<w:pPr>${style ? `<w:pStyle w:val="${escapeXml(style)}"/>` : ""}<w:ind w:left="${Math.round(HANG * 20)}" w:hanging="${Math.round(HANG * 20)}"/></w:pPr>`;
   const body = entries.map((runs) => `<w:p>${props}${runs.map(runXml).join("")}</w:p>`).join("");
   return `<pkg:package xmlns:pkg="http://schemas.microsoft.com/office/2006/xmlPackage"><pkg:part pkg:name="/_rels/.rels" pkg:contentType="application/vnd.openxmlformats-package.relationships+xml"><pkg:xmlData><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships></pkg:xmlData></pkg:part><pkg:part pkg:name="/word/document.xml" pkg:contentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"><pkg:xmlData><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document></pkg:xmlData></pkg:part></pkg:package>`;
-}
-
-/** The paragraph properties worth keeping from a paragraph's OOXML: its style, not its list, indent or run properties. */
-function keptProperties(ooxml) {
-  const m = /<w:body>[\s\S]*?<w:p\b[^>]*>\s*<w:pPr>([\s\S]*?)<\/w:pPr>/.exec(ooxml);
-  return /<w:pStyle\b[^>]*\/>/.exec(m?.[1] ?? "")?.[0] ?? "";
 }
 
 /**
@@ -177,11 +167,13 @@ async function prepareBibliographies(context, bibs) {
     return { b, cc, ps, first: cc.paragraphs.getFirst().getOoxml() };
   });
   if (all.length) await context.sync();
+  // Read before anything is written: an unreadable paragraph stops the refresh.
+  for (const x of all) x.style = x.cc.isNullObject ? null : paragraphStyle(x.first.value);
   return () => {
-    for (const { b, cc, ps, first } of all) {
+    for (const { b, cc, ps, style } of all) {
       if (cc.isNullObject) continue;
       if (!b.hunks || ps.items.length !== b.paragraphs) {
-        cc.getRange("Content").insertOoxml(entriesOoxml(b.entries, keptProperties(first.value)), "Replace");
+        cc.getRange("Content").insertOoxml(entriesOoxml(b.entries, style), "Replace");
         continue;
       }
       for (const h of [...b.hunks].reverse()) {
@@ -270,14 +262,14 @@ export async function refresh(context, session, { fresh = [], store } = {}) {
     const elsewhere = everywhere.items.filter((cc) => isCite(cc) && !inBody.has(cc.tag)).map((cc) => cc.tag.slice(CITE_PREFIX.length));
     if (elsewhere.length) p = plan(controls, store, session.renderer, { ...opts, elsewhere });
   }
+  const bibs = p.bibs.map((b) => ({ id: ccs[b.index].id, entries: b.entries, hunks: b.hunks, paragraphs: paragraphsOf(controls[b.index].current).length }));
+  const writeBibs = await prepareBibliographies(context, bibs);
   const own = p.citations.filter((c) => fresh.includes(ccs[c.index].id));
   for (const c of own) writeRuns(ccs[c.index], c.runs);
   if (p.store) await saveStore(context, p.store);
   else if (own.length) await context.sync();
   const rest = p.citations.filter((c) => !own.includes(c)).map((c) => ({ id: ccs[c.index].id, runs: c.runs }));
-  const bibs = p.bibs.map((b) => ({ id: ccs[b.index].id, entries: b.entries, hunks: b.hunks, paragraphs: paragraphsOf(controls[b.index].current).length }));
   if (rest.length || bibs.length || p.removes.length) {
-    const writeBibs = await prepareBibliographies(context, bibs);
     await writeUntracked(context, () => {
       for (const i of p.removes) ccs[i].delete(false);
       writeBibs();

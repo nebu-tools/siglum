@@ -25,8 +25,8 @@ test("the pane and the code use only messages that exist", () => {
   const html = read("taskpane.html");
   const used = [...html.matchAll(/data-i18n(?:-[a-z-]+)?="([^"]+)"/g)].map((m) => m[1]);
   assert.ok(used.length > 10);
-  for (const f of ["taskpane.js", "word.js", "lookup.js", "messages.js"]) {
-    used.push(...[...read(f).matchAll(/\b(?:t|UserError)\(\s*"([^"]+)"\s*[,)]/g)].map((m) => m[1]));
+  for (const f of ["taskpane.js", "word.js", "ooxml.js", "lookup.js", "messages.js"]) {
+    used.push(...[...read(f).matchAll(/\b(?:t|\w*Error)\(\s*"([^"]+)"\s*[,)]/g)].map((m) => m[1]));
   }
   for (const key of used) assert.ok(key in MESSAGES.en, key);
   // Keys that the code builds from parts.

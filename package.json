@@ -12,7 +12,8 @@
     "e2e": "node e2e/run.mjs"
   },
   "dependencies": {
-    "citeproc": "2.4.63"
+    "citeproc": "2.4.63",
+    "saxes": "6.0.0"
   },
   "devDependencies": {
     "esbuild": "0.28.2"
