@@ -140,7 +140,7 @@ export function parseBibtex(src) {
       if (src[i] === open) depth++;
       else if (src[i] === close && --depth === 0) { i++; return src.slice(start + 1, i - 1); }
     }
-    throw new Error("BibTeX: Klammer nicht geschlossen");
+    throw new Error("BibTeX: a brace is not closed");
   };
   const readValue = () => {
     let v = "";
@@ -336,8 +336,8 @@ export function year(item) {
 /** A key like `mueller2020`, with a letter added until it is free. */
 export function makeKey(item, taken) {
   const a = item.author?.[0] ?? item.editor?.[0];
-  const name = a?.family ?? a?.literal ?? item.title ?? "quelle";
-  const stem = (fold(name).match(/[a-z0-9]+/g) ?? ["quelle"]).filter((w) => !["the", "a", "der", "die", "das"].includes(w))[0] ?? "quelle";
+  const name = a?.family ?? a?.literal ?? item.title ?? "source";
+  const stem = (fold(name).match(/[a-z0-9]+/g) ?? ["source"]).filter((w) => !["the", "a", "der", "die", "das"].includes(w))[0] ?? "source";
   const base = stem.slice(0, 20) + (year(item) || "");
   if (!taken.has(base)) return base;
   for (let n = 0; ; n++) {
@@ -358,7 +358,8 @@ export function identities(item) {
   return out;
 }
 
-const KEY_RE = /^[A-Za-z0-9_:.\-]+$/;
+// A key that a typed `@key` marker can spell: it does not end in "." or ":".
+const KEY_RE = /^[A-Za-z0-9_:.\-]*[A-Za-z0-9_\-]$/;
 
 /**
  * Adds incoming records to a library. A record that is already there, by DOI,

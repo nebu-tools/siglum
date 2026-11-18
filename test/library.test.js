@@ -20,46 +20,46 @@ test("BibTeX names: last-first, first-last, particles, institutions, others", ()
 
 test("BibTeX entries with macros, comments and quoted values", () => {
   const items = parseBibtex(`
-    @string{nejm = "N Engl J Med"}
+    @string{jecol = "J Ecol"}
     @comment{ignored {nested}}
     % a line comment
     @article{mueller2020,
       author = {M{\\"u}ller, Anna and Smith, John},
-      title = {Overall survival with {drug X}},
-      journal = nejm,
+      title = {Tree rings of {Pinus cembra}},
+      journal = jecol,
       year = 2020, month = may,
-      volume = "382", number = {4}, pages = {301--310},
-      doi = {https://doi.org/10.1056/NEJMoa1},
+      volume = "108", number = {4}, pages = {301--310},
+      doi = {https://doi.org/10.1000/jecol.1},
     }
-    @techreport{csr, title={Clinical study report}, institution={Muster Pharma}, number={XY-123}, year={2023}}
+    @techreport{survey2023, title={Glacier inventory}, institution={Alpine Survey Office}, number={AS-123}, year={2023}}
   `);
   assert.equal(items.length, 2);
   assert.deepEqual(items[0], {
-    id: "mueller2020", type: "article-journal", title: "Overall survival with drug X",
+    id: "mueller2020", type: "article-journal", title: "Tree rings of Pinus cembra",
     author: [{ family: "Müller", given: "Anna" }, { family: "Smith", given: "John" }],
-    "container-title": "N Engl J Med", volume: "382", issue: "4", page: "301-310", DOI: "10.1056/NEJMoa1",
+    "container-title": "J Ecol", volume: "108", issue: "4", page: "301-310", DOI: "10.1000/jecol.1",
     issued: { "date-parts": [[2020, 5]] },
   });
   assert.equal(items[1].type, "report");
-  assert.equal(items[1].number, "XY-123");
+  assert.equal(items[1].number, "AS-123");
   assert.equal(items[1].issue, undefined);
-  assert.equal(items[1].publisher, "Muster Pharma");
+  assert.equal(items[1].publisher, "Alpine Survey Office");
 });
 
 test("RIS records, including EndNote's export", () => {
   const items = parseRis([
-    "TY  - JOUR", "AU  - Müller, Anna", "AU  - Smith, John B.", "TI  - Overall survival", "  with drug X",
-    "T2  - N Engl J Med", "PY  - 2020/05/01", "VL  - 382", "IS  - 4", "SP  - 301", "EP  - 310",
-    "DO  - 10.1056/NEJMoa1", "AN  - 31234567", "ER  - ", "", "TY  - ELEC", "AU  - Muster Pharma GmbH",
-    "TI  - Fachinformation Demozil", "UR  - https://www.fachinfo.de/x", "PY  - 2024", "Y2  - 2026/11/02", "ER  - ",
+    "TY  - JOUR", "AU  - Müller, Anna", "AU  - Smith, John B.", "TI  - Tree rings", "  of Pinus cembra",
+    "T2  - J Ecol", "PY  - 2020/05/01", "VL  - 108", "IS  - 4", "SP  - 301", "EP  - 310",
+    "DO  - 10.1000/jecol.1", "AN  - 31234567", "ER  - ", "", "TY  - ELEC", "AU  - Alpine Survey Office",
+    "TI  - Snow depth data", "UR  - https://example.org/snow", "PY  - 2024", "Y2  - 2026/11/02", "ER  - ",
   ].join("\r\n"));
   assert.equal(items.length, 2);
-  assert.equal(items[0].title, "Overall survival with drug X");
+  assert.equal(items[0].title, "Tree rings of Pinus cembra");
   assert.equal(items[0].page, "301-310");
   assert.equal(items[0].PMID, "31234567");
   assert.deepEqual(items[0].issued, { "date-parts": [[2020, 5, 1]] });
   assert.equal(items[1].type, "webpage");
-  assert.deepEqual(items[1].author, [{ literal: "Muster Pharma GmbH" }]);
+  assert.deepEqual(items[1].author, [{ literal: "Alpine Survey Office" }]);
   assert.deepEqual(items[1].accessed, { "date-parts": [[2026, 11, 2]] });
 });
 
@@ -74,23 +74,26 @@ test("keys from first author and year, unique with letters", () => {
   const it = { author: [{ family: "Müller" }], issued: { "date-parts": [[2020]] } };
   assert.equal(makeKey(it, taken), "mueller2020a");
   assert.equal(makeKey({ author: [{ literal: "The World Health Organization" }] }, new Set()), "world");
+  assert.equal(makeKey({}, new Set()), "source");
   assert.equal(fold("Señor Øresund Straße"), "senor øresund strasse");
 });
 
 test("merging keeps keys of known works and updates them", () => {
-  const lib = { m20: { id: "m20", title: "Overall survival with drug X", DOI: "10.1/A", issued: { "date-parts": [[2020]] } } };
+  const lib = { m20: { id: "m20", title: "Tree rings of Pinus cembra", DOI: "10.1/A", issued: { "date-parts": [[2020]] } } };
   const r = mergeItems(lib, [
-    { title: "Overall survival with drug X (corrected)", DOI: "10.1/a" },
+    { title: "Tree rings of Pinus cembra (corrected)", DOI: "10.1/a" },
     { id: "m20", title: "Another work with the same key", DOI: "10.1/B", author: [{ family: "Lee" }], issued: { "date-parts": [[2019]] } },
     { title: "No key at all", author: [{ family: "Smith" }], issued: { "date-parts": [[2021]] } },
     { id: "bad key!", title: "Weird key", author: [{ family: "Smith" }], issued: { "date-parts": [[2021]] } },
   ]);
-  assert.equal(r.library.m20.title, "Overall survival with drug X (corrected)");
+  assert.equal(r.library.m20.title, "Tree rings of Pinus cembra (corrected)");
   assert.equal(r.library.lee2019.DOI, "10.1/B");
   assert.equal(r.updated, 1);
   assert.equal(r.added, 3);
   assert.ok(r.library.smith2021);
   assert.ok(r.library.smith2021a);
+  // A key that a typed marker cannot spell gets a new one.
+  assert.deepEqual(Object.keys(mergeItems({}, [{ id: "lee2019.", title: "T", author: [{ family: "Lee" }], issued: { "date-parts": [[2019]] } }]).library), ["lee2019"]);
   // Without ids to compare, an entry under a known key is a correction.
   const fix = mergeItems({ k: { id: "k", title: "Typo" } }, [{ id: "k", title: "Fixed" }]);
   assert.deepEqual(fix.library, { k: { id: "k", title: "Fixed" } });

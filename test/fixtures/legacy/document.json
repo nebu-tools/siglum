@@ -1,0 +1,18 @@
+{
+  "controls": [
+    { "tag": "zitat:k3x9a1", "title": "Zitat: mueller2020; lee2010", "text": "[1,2]" },
+    { "tag": "zitat:p7q2b4", "title": "Zitat: snow2024", "text": "[3]" },
+    { "tag": "literaturverzeichnis", "title": "Literaturverzeichnis", "text": "" },
+    { "tag": "reviewer-note", "title": "Zitatfreie Notiz", "text": "A control of another add-in." }
+  ],
+  "paragraphs": [
+    "Old markers [@mueller2020] and [@lee2010; @snow2024, S. 12] in one paragraph.",
+    "Brackets that are no marker stay: [@ home] and [1].",
+    "The entries follow."
+  ],
+  "upgraded": [
+    "Old markers @mueller2020 and @lee2010 @snow2024[S. 12] in one paragraph.",
+    "Brackets that are no marker stay: [@ home] and [1].",
+    "The entries follow."
+  ]
+}
