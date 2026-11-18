@@ -28,10 +28,13 @@ for (const op of ops) {
     if (x.trackedChanges != null) return `${sec(x.ms)} (${x.trackedChanges} tracked changes)`;
     if (op.startsWith("read:")) return `${sec(x.readMs || x.loadMs)} (${x.controls} controls)`;
     if (x.changes) return JSON.stringify(x.changes);
+    if (x.msPerWrite != null) return `${x.msPerWrite} ms per write`;
+    if (x.msPerControl != null) return `${x.msPerControl} ms per control`;
+    if (op.startsWith("floor:")) return `${sec(x.ms)}${x.bytes ? ` for ${Math.round(x.bytes / 1024)} KB` : ""}${x.entries ? ` for ${x.entries} entries` : ""}`;
     if (x.bytes) return `${Math.round(x.bytes / 1024)} KB in ${x.parts} part(s), ${x.citations} stored citations`;
     const parts = [sec(x.ms)];
     if (x.visibleMs != null) parts.push(`visible ${sec(x.visibleMs)}`);
-    if (x.settledMs != null && x.settledMs - x.ms > 1000) parts.push(`settled ${sec(x.settledMs)}`);
+    if (x.settledMs != null && x.settledMs - x.ms > 500) parts.push(`settled ${sec(x.settledMs)}`);
     if (x.syncs != null) parts.push(`${x.syncs} syncs`);
     if (x.syncMs != null && x.ms) parts.push(`${Math.round((100 * x.syncMs) / x.ms)} % in Word`);
     if (x.writes) parts.push(`writes ${x.writes.citations}c/${x.writes.bibs}b`);

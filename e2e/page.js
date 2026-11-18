@@ -704,7 +704,85 @@ async function sectionsReopen() {
   await settled("reopened");
 }
 
-const SCENARIOS = { main, "main-reopen": mainReopen, template, "template-reopen": templateReopen, markers, sections, "sections-reopen": sectionsReopen };
+// ---- renumbering in batches -------------------------------------------------------------
+
+/** Sources that no citation uses yet: citing one at the start renumbers the section. */
+async function unused() {
+  const { store } = await readStore();
+  const cited = new Set(Object.values(store.citations).flat().map((x) => x.id));
+  return Object.keys(store.sources).filter((k) => !cited.has(k));
+}
+const cursorAtStart = () => word(async (c) => { c.document.body.paragraphs.getFirst().getNext().getRange("Start").select("Start"); await c.sync(); });
+const cursorAtEnd = () => word(async (c) => { c.document.body.paragraphs.getLast().getRange("End").select("End"); await c.sync(); });
+
+/** A refresh after everything has settled writes nothing. */
+async function consistent(name) {
+  await idle();
+  const r = await refresh();
+  check(name, r && !r.citations.length && !r.bibs.length && !r.removes.length, r && { c: r.citations.length, b: r.bibs.length, r: r.removes.length, status: $("status").textContent });
+}
+
+const PHASE = "siglum.e2e.phase";
+
+async function renumber() {
+  const fresh = await unused();
+  if (sessionStorage.getItem(PHASE) === "reloaded") {
+    sessionStorage.removeItem(PHASE);
+    const f = done.first;
+    check("after the pane closed half-way, its first refresh writes the rest", f && f.citations.length > 0, f && { c: f.citations.length, b: f.bibs.length });
+    await consistent("after the pane closed half-way, the document is consistent again");
+    // Now the document closes half-way: the harness saves it while the batches go on.
+    await cursorAtStart();
+    const d = nextDone();
+    pick(fresh[0]);
+    await d;
+    post({ done: true, ok: results.every((x) => x.ok) });
+    await new Promise(() => {});
+  }
+  await cursorAtStart();
+  let d = nextDone();
+  pick(fresh[0]);
+  let r = await d;
+  check("a new first citation is numbered at once, the rest follows in batches with a progress line", (await citeTexts())[0] === "[1]" && r.work && /^Updating citations: \d+ of \d+/.test($("status").textContent), { first: (await citeTexts())[0], work: !!r?.work, status: $("status").textContent });
+  // A second action while the batches run.
+  await cursorAtEnd();
+  pick(fresh[1]);
+  await consistent("a second citation during the renumbering leaves a consistent document");
+
+  await cursorAtStart();
+  d = nextDone();
+  pick(fresh[2]);
+  await d;
+  // A citation deleted by hand while the batches run.
+  await word(async (c) => { (await nthCitation(c, 5)).delete(false); await c.sync(); });
+  await consistent("a citation deleted during the renumbering leaves a consistent document");
+  const tags = await word(async (c) => {
+    const cc = c.document.contentControls;
+    cc.load("items/tag");
+    await c.sync();
+    return new Set(cc.items.filter(isCite).map((x) => x.tag.slice(CITE_PREFIX.length)));
+  });
+  const { store } = await readStore();
+  const stale = Object.keys(store.citations).filter((id) => !tags.has(id));
+  check("the stored entries of citations that are gone leave the store", stale.length === 0, stale);
+
+  // The pane closes half-way: a reload stands for it.
+  await cursorAtStart();
+  d = nextDone();
+  pick(fresh[3]);
+  await d;
+  sessionStorage.setItem(PHASE, "reloaded");
+  location.reload();
+  await new Promise(() => {});
+}
+
+async function renumberReopen() {
+  const f = done.first;
+  check("after the document closed half-way, its first refresh writes the rest", f && f.citations.length > 0, f && { c: f.citations.length });
+  await consistent("after the document closed half-way, the document is consistent again");
+}
+
+const SCENARIOS = { renumber, "renumber-reopen": renumberReopen, main, "main-reopen": mainReopen, template, "template-reopen": templateReopen, markers, sections, "sections-reopen": sectionsReopen };
 
 onReady(async () => {
   const { scenario } = await (await fetch("e2e-config.json", { cache: "no-store" })).json();
