@@ -50,7 +50,7 @@ for (const name of ["zitate:done", "siglum:done", "citations:done"]) {
     for (const w of waiters.splice(0)) w(e.detail);
   });
 }
-export const nextDone = (timeoutMs = 600000) => new Promise((resolve, reject) => {
+export const nextDone = (timeoutMs = 3 * 3600000) => new Promise((resolve, reject) => {
   waiters.push(resolve);
   setTimeout(() => reject(new Error("pane did not finish in " + timeoutMs + " ms")), timeoutMs);
 });

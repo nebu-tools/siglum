@@ -9,6 +9,8 @@ run next to the real pane and use it through its UI.
 | `run.mjs` + `page.js` | The end-to-end suite (`npm run e2e`): pass/fail checks in an empty document, the G-BA Modul 3 template, after `gba.R apply`, and reopened. |
 | `measure.mjs` + `measure.js` | Timings on generated documents: open, refresh, cite, typed marker, selection watcher, track changes, full rewrite. |
 | `probe.mjs` + `probe.js` | Findings, not checks: footnotes, endnotes, headers, text boxes, copy/cut/move, tracked move, save and reopen, paste into another document, two instances on one file. |
+| `report.mjs` | Puts `measure-*.json` side by side as a Markdown table. |
+| `coauthor.ps1` | Opens one file in two Word instances (used by `probe.mjs`), with a time limit and cleanup by process id. |
 | `generate.mjs` | Builds a document with N pages, C citations, B reference lists and R works, rendered with the add-in's own `plan()` and citeproc. |
 | `names.mjs` | The only place that knows the add-in's stored names (tags, namespace, store keys, marker syntax). It reads them from `src/model.js`. |
 | `rig.mjs` | Builds the panes, makes docx files that open a pane by themselves, runs one document per Word instance. |
@@ -53,12 +55,17 @@ node e2e/measure.mjs small               # 20 pages, 100 citations, 1 list, 50 w
 node e2e/measure.mjs medium              # 150 pages, 1,000 citations, 3 lists, 500 works
 node e2e/measure.mjs large               # 500 pages, 4,000 citations, 6 lists, 2,000 works
 node e2e/measure.mjs --pages 50 --citations 300 --bibs 2 --refs 200
+node e2e/report.mjs                      # table from dist-e2e/measure-*.json
 node e2e/probe.mjs                       # behaviour findings
 node e2e/generate.mjs --pages 20 --citations 100 --bibs 1 --refs 50 out.docx   # just the document
 ```
 
-Run measurements in the background: medium takes about 10 minutes, large more
-than an hour. `measure.mjs` writes `dist-e2e/measure-<size>.json` with every
+Run measurements in the background: medium takes about 10 minutes, large about
+two hours on main. Detach the large run (`setsid nohup node e2e/measure.mjs large
+> large.log 2>&1 &`) if your shell kills background jobs after two hours. To
+run a second harness while one is running, give it its own directory and port:
+`E2E_OUT=dist-e2e-probe E2E_PORT=3188 node e2e/probe.mjs`. Every harness wipes
+its output directory when it builds. `measure.mjs` writes `dist-e2e/measure-<size>.json` with every
 row, and prints a line per operation:
 
 ```

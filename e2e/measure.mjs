@@ -4,6 +4,10 @@
 //   node e2e/measure.mjs                 small, medium and large
 //   node e2e/measure.mjs small medium    just those
 //   node e2e/measure.mjs --pages 50 --citations 300 --bibs 2 --refs 200
+//   node e2e/measure.mjs large --steps tracked,full,reads
+//
+// Step groups: idle, watcher, cite, marker, tracked, full, search, reads.
+// Opening the pane is always measured.
 //
 // Writes dist-e2e/measure-<size>.json and prints a table per size.
 import fs from "node:fs";
@@ -19,6 +23,8 @@ const SIZES = {
 
 const argv = process.argv.slice(2);
 const opt = (n) => { const i = argv.indexOf("--" + n); return i >= 0 ? +argv[i + 1] : undefined; };
+const si = argv.indexOf("--steps");
+const steps = si >= 0 ? argv[si + 1].split(",") : undefined;
 let runs = argv.filter((a) => SIZES[a]).map((a) => [a, SIZES[a]]);
 if (opt("pages")) runs = [["custom", { pages: opt("pages"), citations: opt("citations") ?? 100, bibs: opt("bibs") ?? 1, refs: opt("refs") ?? 50 }]];
 if (!runs.length) runs = Object.entries(SIZES);
@@ -34,7 +40,7 @@ try {
     const docx = path.join(dist, `measure-${size}-in.docx`);
     writeDocx(addPane(g.parts, idFor("measure.html")), docx);
     console.log("    generated: " + JSON.stringify(g.stats));
-    fs.writeFileSync(path.join(dist, "measure-config.json"), JSON.stringify({ ...g.stats, size }));
+    fs.writeFileSync(path.join(dist, "measure-config.json"), JSON.stringify({ ...g.stats, size, steps }));
     const rows = [];
     const t0 = Date.now();
     const r = await inWord({
@@ -49,8 +55,8 @@ try {
         } else if (!m.done) console.log("    " + JSON.stringify(m));
       },
     });
-    const result = { size, spec, generated: g.stats, word: r.info, code: r.code, ok: r.done?.ok, seconds: (Date.now() - t0) / 1000, rows };
-    fs.writeFileSync(path.join(dist, `measure-${size}.json`), JSON.stringify(result, null, 2));
+    const result = { size, spec, steps, generated: g.stats, word: r.info, code: r.code, ok: r.done?.ok, seconds: (Date.now() - t0) / 1000, rows };
+    fs.writeFileSync(path.join(dist, `measure-${size}${steps ? "-" + steps.join("+") : ""}.json`), JSON.stringify(result, null, 2));
     console.log(`    Word: ${JSON.stringify(r.info)}`);
     if (r.code !== 0 || !r.done?.ok) console.log(`FAIL ${size}: exit ${r.code}, done ${JSON.stringify(r.done)}`);
   }

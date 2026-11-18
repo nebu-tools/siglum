@@ -3,8 +3,8 @@
 //
 // Copy, cut and paste go through getOoxml/insertOoxml, which is what Word's
 // clipboard carries for a content control; the system clipboard stays untouched.
-/* global Word */
-import { post, sleep, $, word, harness, nextDone, onReady, idle, pick, key, lastDone, firstDone } from "./pane.js";
+/* Harness page; Word is reached through pane.js. */
+import { post, sleep, $, word, harness, nextDone, onReady, idle, key, lastDone, firstDone } from "./pane.js";
 import * as names from "./names.mjs";
 
 const report = (probe, data) => post({ probe, data });
@@ -192,4 +192,3 @@ onReady(async () => {
   await sleep(200);
   post({ done: true, ok });
 });
-void pick;
