@@ -6,15 +6,12 @@
 
 import {
   NS, CITE_PREFIX, BIB_TAG, CITE_NEW,
-  emptyStore, storeToXml, storeFromXml, mergeStores, newId, citeTitle, findMarkers, plan,
+  emptyStore, storeToXml, storeFromXml, newId, citeTitle, findMarkers, plan,
 } from "./model.js";
-import { upgradeLegacy } from "./legacy.js";
 import { documentText, UserError } from "./messages.js";
 
 // Hanging indent of bibliography entries, in points (1 cm).
 const HANG = 28.35;
-// Word refuses a search text longer than this.
-const SEARCH_MAX = 255;
 
 const isCite = (cc) => cc.tag?.startsWith(CITE_PREFIX);
 const isOurs = (cc) => isCite(cc) || cc.tag === BIB_TAG;
@@ -27,16 +24,6 @@ function citationControls(context) {
   return context.document.body.contentControls;
 }
 
-async function loadStore(context) {
-  const parts = context.document.customXmlParts.getByNamespace(NS);
-  parts.load("items");
-  await context.sync();
-  if (!parts.items.length) return emptyStore();
-  const xml = parts.items[0].getXml();
-  await context.sync();
-  return storeFromXml(xml.value);
-}
-
 async function saveStore(context, store) {
   const parts = context.document.customXmlParts.getByNamespace(NS);
   parts.load("items");
@@ -47,18 +34,17 @@ async function saveStore(context, store) {
 }
 
 /**
- * The document's store. Every operation starts here, so this is the one place
- * that upgrades a document in an old format. A document without a language
- * for its citations gets the session's; the next save keeps it.
+ * The document's store. Every operation starts here. A document without one
+ * gets an empty store in the session's language; the next save keeps it.
  */
 async function openStore(context, session) {
-  await upgradeLegacy(context, {
-    adopt: async (old) => saveStore(context, mergeStores(old, await loadStore(context))),
-    untracked: (fn) => withTracking(context, "Off", fn),
-  });
-  const store = await loadStore(context);
-  const locale = session.renderer.resolve(store.settings.locale ?? session.locale);
-  return { ...store, settings: { ...store.settings, locale } };
+  const parts = context.document.customXmlParts.getByNamespace(NS);
+  parts.load("items");
+  await context.sync();
+  if (!parts.items.length) return emptyStore(session.renderer.resolve(session.locale));
+  const xml = parts.items[0].getXml();
+  await context.sync();
+  return storeFromXml(xml.value);
 }
 
 /** Citations and bibliographies in document order, with their texts. */
@@ -238,6 +224,38 @@ async function addBibliography(context, text) {
   await context.sync();
 }
 
+// Word's literal search takes at most this many characters, and "^" starts a
+// special code such as "^p" in it, so a caret is searched as "^^".
+const SEARCH_MAX = 255;
+const searchText = (s) => s.replace(/\^/g, "^^");
+// Where a search text may be cut: not inside a surrogate pair, and not before
+// a combining mark or a joiner, which belong to the character before them.
+const ATTACHES = /[\p{M}\u200c\u200d]|[\udc00-\udfff]/u;
+
+/** The longest piece of `text` from its start (or its end) that one search can take. */
+function piece(text, fromEnd) {
+  let n = 0;
+  let len = 0;
+  for (const c of fromEnd ? [...text].reverse() : text) {
+    len += c === "^" ? 2 : 1;
+    if (len > SEARCH_MAX) break;
+    n += c.length;
+  }
+  if (fromEnd) { while (n > 0 && ATTACHES.test(text[text.length - n])) n--; return text.slice(text.length - n); }
+  while (n > 0 && ATTACHES.test(text[n])) n--;
+  return text.slice(0, n);
+}
+
+// How a range inside a content control compares with the control's range.
+const INSIDE = new Set(["Inside", "InsideStart", "InsideEnd", "Equal"]);
+
+/** Where `needle` starts in `text`, without overlaps and in order, as Word's search reports it. */
+function occurrences(text, needle) {
+  const at = new Map();
+  for (let i = text.indexOf(needle); i !== -1; i = text.indexOf(needle, i + needle.length)) at.set(i, at.size);
+  return at;
+}
+
 /**
  * Finds the typed `@key` markers: [{range, items, text}], and in `lost` the
  * texts of markers that the search could not pin down.
@@ -245,10 +263,15 @@ async function addBibliography(context, text) {
  * Word's wildcard search cannot do this. There "@" is an operator, and a
  * pattern cannot say "at the start of a word". So a plain search first tells
  * whether the document has an "@" at all. If it has, model.findMarkers reads
- * each paragraph's text, and a plain search for a marker's exact text inside
- * its paragraph gives the range.
+ * each paragraph's text, and a plain search inside the paragraph gives each
+ * group's range: one search for the group's text, or for a group longer than
+ * a search can be, one for its start and one for its end and the range
+ * between them. Each distinct text is searched once per paragraph, and the
+ * group is the hit at its place among the text's occurrences. A group whose
+ * range does not read exactly as the paragraph's text does is lost, so
+ * nothing is replaced on a guess. All this takes four syncs.
  */
-async function locateMarkers(context) {
+export async function locateMarkers(context) {
   const body = context.document.body;
   const probe = body.search("@", { matchCase: true });
   probe.load("items");
@@ -257,35 +280,52 @@ async function locateMarkers(context) {
 
   const paragraphs = body.paragraphs;
   paragraphs.load("items/text");
+  const controls = citationControls(context);
+  controls.load("items/tag,items/text");
   await context.sync();
   const lost = [];
-  const wanted = [];
+  const groups = [];
   for (const p of paragraphs.items) {
     if (!p.text.includes("@")) continue;
-    for (const group of findMarkers(p.text)) {
-      // "^" starts a special code in a plain search.
-      if (group.text.length > SEARCH_MAX || group.text.includes("^")) { lost.push(group.text); continue; }
-      const hits = p.search(group.text, { matchCase: true });
-      hits.load("items");
-      wanted.push({ group, hits });
+    const searches = new Map();
+    const find = (text, at) => {
+      let s = searches.get(text);
+      if (!s) {
+        s = { at: occurrences(p.text, text), hits: p.search(searchText(text), { matchCase: true }) };
+        s.hits.load("items");
+        searches.set(text, s);
+      }
+      return { s, nth: s.at.get(at) };
+    };
+    for (const g of findMarkers(p.text)) {
+      if (searchText(g.text).length <= SEARCH_MAX) { groups.push({ g, ends: [find(g.text, g.start)] }); continue; }
+      const head = piece(g.text, false);
+      const tail = piece(g.text, true);
+      if (!head || !tail) { lost.push(g.text); continue; }
+      groups.push({ g, ends: [find(head, g.start), find(tail, g.end - tail.length)] });
     }
   }
+  // An "@" inside a citation or a bibliography, at any depth, is part of its text.
+  const ours = controls.items.filter((cc) => isOurs(cc) && cc.text.includes("@")).map((cc) => cc.getRange("Whole"));
   await context.sync();
 
   const found = [];
-  for (const { group, hits } of wanted) {
+  for (const { g, ends } of groups) {
     // The paragraph's text and the search must agree on where the marker is.
-    if (hits.items.length !== group.of) { lost.push(group.text); continue; }
-    const range = hits.items[group.nth];
-    const host = range.parentContentControlOrNullObject;
-    host.load("tag");
-    found.push({ range, host, items: group.items, text: group.text });
+    if (ends.some(({ s, nth }) => nth === undefined || s.hits.items.length !== s.at.size)) { lost.push(g.text); continue; }
+    const [head, tail] = ends.map(({ s, nth }) => s.hits.items[nth]);
+    const range = tail ? head.expandTo(tail) : head;
+    range.load("text");
+    found.push({ range, g, inside: ours.map((r) => range.compareLocationWith(r)) });
   }
   await context.sync();
-  // An "@" inside a citation or a bibliography is part of its text.
-  return { markers: found.filter((m) => m.host.isNullObject || !isOurs(m.host)), lost };
+  const markers = [];
+  for (const { range, g, inside } of found) {
+    if (range.text !== g.text) lost.push(g.text);
+    else if (!inside.some((x) => INSIDE.has(x.value))) markers.push({ range, items: g.items, text: g.text });
+  }
+  return { markers, lost };
 }
-
 /**
  * Turns typed `@key` markers into citations and brings the document up to
  * date. A marker with an unknown key stays as text and comes back in

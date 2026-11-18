@@ -358,8 +358,15 @@ export function identities(item) {
   return out;
 }
 
-// A key that a typed `@key` marker can spell: it does not end in "." or ":".
-const KEY_RE = /^[A-Za-z0-9_:.\-]*[A-Za-z0-9_\-]$/;
+/**
+ * A citation key, as a pattern: what a typed `@key` marker can spell. These
+ * are Typst's label characters: letters, combining marks, digits, "_", "-",
+ * ":" and ".". A key does not start with a combining mark and does not end in
+ * "." or ":", so the full stop of "see @smith2020." stays in the sentence.
+ * Keys are stored and compared in Unicode's composed form (NFC).
+ */
+export const KEY = String.raw`(?!\p{M})[\p{L}\p{M}\p{N}_\-:.]*[\p{L}\p{M}\p{N}_\-]`;
+const KEY_RE = new RegExp(`^${KEY}$`, "u");
 
 /**
  * Adds incoming records to a library. A record that is already there, by DOI,
@@ -374,7 +381,8 @@ export function mergeItems(library, incoming) {
   let added = 0;
   let updated = 0;
   for (const raw of incoming) {
-    const { id: wanted, ...rest } = raw;
+    const { id, ...rest } = raw;
+    const wanted = id?.normalize("NFC");
     const same = identities(rest).map((x) => byIdentity.get(x)).find(Boolean);
     let key;
     // A known work keeps its key, so citations in the document stay valid. A

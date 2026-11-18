@@ -58,7 +58,7 @@ function fillSettings() {
 function setStore(store) {
   state.library = store.sources;
   state.index = buildIndex(state.library);
-  if (store.settings?.locale) $("locale").value = store.settings.locale;
+  $("locale").value = store.settings.locale;
   showResults();
 }
 

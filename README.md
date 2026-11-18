@@ -24,7 +24,14 @@ Or type a marker in the text and click Refresh:
 | `@smith2020[p. 12]` | The same citation with page 12 |
 | `@smith2020 @lee2010` | One citation of both sources |
 
-A key can contain letters, digits, `_`, `-`, `:` and `.`, and it does not end in `.` or `:`. Siglum reads `p.`, `pp.`, `ch.`, `sec.`, a bare number and the German forms such as `S.` and `Kap.` as a place in the source. It adds any other text in the brackets after the citation. An `@` inside a word is ordinary text, so e-mail addresses stay as they are. A marker with a key that Siglum does not know stays in the text, and the pane lists it.
+The rules for markers:
+
+- A marker starts with `@`. The `@` must be at the start of a paragraph or come after a space, a tab, a no-break space, `(`, `{`, a quotation mark, a dash, `,` or `;`. After anything else it is ordinary text, so e-mail addresses and addresses such as `example.org/@name` stay as they are.
+- A key can contain letters, combining accents, digits, `_`, `-`, `:` and `.`. It does not end in `.` or `:`, so the full stop in `see @smith2020.` stays in the sentence. Siglum compares keys in Unicode's composed form, so `é` typed as one character or as `e` with a combining accent is the same key.
+- Markers with only spaces or no-break spaces between them become one citation. A tab or a line break between them makes two citations.
+- The text in square brackets right after the key is the supplement. Brackets inside it count in pairs, so `@a[see [2]]` has the supplement `see [2]`. A bracket that does not close in the same paragraph, as in `@a[p. 12`, belongs to the text, and `@a` is a citation without a supplement. A supplement holds no tab or line break.
+- Siglum reads `p.`, `pp.`, `ch.`, `sec.`, a bare number and the German forms such as `S.` and `Kap.` as a place in the source. It adds any other supplement after the citation.
+- A marker whose key is not in the document's sources stays in the text, and the pane lists it under "Unknown".
 
 Click "Insert bibliography" to put a bibliography at the cursor. A document can have more than one. Each bibliography lists the sources cited since the bibliography before it, and the numbers start again at 1 after it.
 
@@ -93,7 +100,7 @@ The JSON has this shape:
 
 Each source is a CSL-JSON item. `settings.locale` is the language of the citations and bibliographies. A citation that you paste into another document keeps its keys in the title, if they fit into the 64 characters that a title can have.
 
-The code defines these names in `src/model.js`. Earlier versions used German names and markers of the form `[@key]`. Siglum upgrades such a document when you open the pane or click Refresh, and it writes only the current names afterwards. `src/legacy.js` contains the upgrade.
+The code defines these names in `src/model.js`.
 
 ## Languages
 
@@ -137,7 +144,6 @@ The code has these parts:
 | `src/render.js` | Citations and bibliographies with citeproc-js |
 | `src/library.js` | Import of BibTeX, RIS and CSL-JSON |
 | `src/messages.js` | The text of the pane in each language |
-| `src/legacy.js` | The upgrade of documents in the old format |
 
 ## License
 

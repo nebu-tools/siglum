@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createRenderer, htmlToRuns, resolveLocale, runsText } from "../src/render.js";
-import { plan, storeToXml, storeFromXml, mergeStores, emptyStore, citeTitle, keysFromTitle, BIB_EMPTY, CITE_NEW, CITE_PREFIX, NS } from "../src/model.js";
+import { plan, storeToXml, storeFromXml, emptyStore, citeTitle, keysFromTitle, BIB_EMPTY, CITE_NEW, CITE_PREFIX, NS } from "../src/model.js";
 
 const csl = (f) => fs.readFileSync(new URL("../csl/" + f, import.meta.url), "utf8");
 const renderer = createRenderer({
@@ -121,16 +121,6 @@ test("the store survives XML", () => {
   assert.match(xml, /^<\?xml[^>]*\?><siglum xmlns="urn:siglum:store:1">\{"sources":/);
   assert.deepEqual(storeFromXml(xml), s);
   assert.deepEqual(storeFromXml(xml.replace("<?xml version=\"1.0\" encoding=\"UTF-8\"?>", "")), s);
-  assert.deepEqual(storeFromXml(""), emptyStore());
-  assert.deepEqual(storeFromXml("<siglum xmlns=\"urn:siglum:store:1\">{\"sources\":{}}</siglum>"), emptyStore());
-});
-
-test("merging stores keeps both, the second wins", () => {
-  const a = { sources: { x: { id: "x", title: "old" }, y: { id: "y" } }, citations: { 1: [{ id: "x" }] }, settings: { locale: "de-DE" } };
-  const b = { sources: { x: { id: "x", title: "new" } }, citations: { 2: [{ id: "y" }] }, settings: {} };
-  assert.deepEqual(mergeStores(a, b), {
-    sources: { x: { id: "x", title: "new" }, y: { id: "y" } },
-    citations: { 1: [{ id: "x" }], 2: [{ id: "y" }] },
-    settings: { locale: "de-DE" },
-  });
+  assert.throws(() => storeFromXml(""));
+  assert.deepEqual(storeFromXml(storeToXml(emptyStore("de-DE"))), { sources: {}, citations: {}, settings: { locale: "de-DE" } });
 });

@@ -7,7 +7,7 @@ const texts = (text) => findMarkers(text).map((g) => g.text);
 
 test("a marker is @ and a key", () => {
   assert.deepEqual(findMarkers("As shown @smith2020 here"), [
-    { start: 9, end: 19, text: "@smith2020", items: [{ id: "smith2020" }], nth: 0, of: 1 },
+    { start: 9, end: 19, text: "@smith2020", items: [{ id: "smith2020" }] },
   ]);
   assert.deepEqual(keys("@a at the start, at the end @b"), [["a"], ["b"]]);
   assert.deepEqual(keys("no marker here"), []);
@@ -35,18 +35,42 @@ test("an @ inside a word is never a marker", () => {
   assert.deepEqual(keys("x.@a y_@b"), []);
 });
 
-test("quotes, brackets and dashes may come before a marker", () => {
-  assert.deepEqual(keys("(@a) [@b] “@c” „@d“ – @e —@f"), [["a"], ["b"], ["c"], ["d"], ["e"], ["f"]]);
-  assert.deepEqual(keys("a @b"), [["b"]]);
+test("what may come before a marker", () => {
+  assert.deepEqual(keys("(@a) {@b} “@c” „@d“ – @e —@f '@g' «@h»"), [["a"], ["b"], ["c"], ["d"], ["e"], ["f"], ["g"], ["h"]]);
+  assert.deepEqual(keys("a @b,@c;@d\t@e x"), [["b"], ["c"], ["d"], ["e"]]);
+  // Anything else before the "@" makes it text.
+  assert.deepEqual(keys("x@a /@b <@d> #@e *@f ]@g"), []);
+});
+
+test("keys are compared in composed form, and a mark belongs to its key", () => {
+  // "e" and a combining acute accent are one character to the reader.
+  assert.deepEqual(findMarkers("see @café and @é."), [
+    { start: 4, end: 10, text: "@café", items: [{ id: "café" }] },
+    { start: 15, end: 18, text: "@é", items: [{ id: "é" }] },
+  ]);
+  assert.deepEqual(keys("@müller @müller"), [["müller"]]);
+  // A marker never ends inside a character: not before a joiner, not before a mark on its closing bracket.
+  assert.deepEqual(keys("@ab‍"), []);
+  assert.deepEqual(texts("@a[x]́"), ["@a"]);
+  assert.deepEqual(keys("@́a"), []);
 });
 
 test("a supplement in brackets belongs to its key", () => {
   assert.deepEqual(findMarkers("@a[p. 12]")[0].items, [{ id: "a", locator: "12", label: "page" }]);
   assert.deepEqual(findMarkers("@a[see the table]")[0].items, [{ id: "a", suffix: "see the table" }]);
-  assert.deepEqual(findMarkers("@a[]")[0], { start: 0, end: 4, text: "@a[]", items: [{ id: "a" }], nth: 0, of: 1 });
+  assert.deepEqual(findMarkers("@a[]")[0], { start: 0, end: 4, text: "@a[]", items: [{ id: "a" }] });
   // A space ends the marker, and so does a bracket that never closes.
   assert.deepEqual(texts("@a [p. 12] and @b[p. 3"), ["@a", "@b"]);
-  assert.deepEqual(texts("@a[x[y]]"), ["@a"]);
+  assert.deepEqual(texts("@a[unfinished"), ["@a"]);
+  assert.deepEqual(texts("@a[x[y] and more"), ["@a"]);
+  // So do a tab and a line break inside the brackets.
+  assert.deepEqual(texts("@a[p.\t12] @b[p.\v3]"), ["@a", "@b"]);
+});
+
+test("brackets inside a supplement count in pairs", () => {
+  assert.deepEqual(findMarkers("@a[outer[inner]] text")[0], { start: 0, end: 16, text: "@a[outer[inner]]", items: [{ id: "a", suffix: "outer[inner]" }] });
+  assert.deepEqual(texts("@a[see [1] and [2]] @b"), ["@a[see [1] and [2]] @b"]);
+  assert.deepEqual(texts("@a[x]] y"), ["@a[x]"]);
 });
 
 test("markers with only spaces between them are one citation", () => {
@@ -55,6 +79,7 @@ test("markers with only spaces between them are one citation", () => {
   assert.deepEqual(g.items, [{ id: "a" }, { id: "b", locator: "3", label: "page" }, { id: "c" }, { id: "d" }]);
   assert.deepEqual(rest.map((x) => x.text), ["@e"]);
   assert.deepEqual(texts("@a\t@b and @c\n@d"), ["@a", "@b", "@c", "@d"]);
+  assert.deepEqual(texts("@a\u00a0@b"), ["@a\u00a0@b"]);
   // A group ends before a word that is no marker.
   assert.deepEqual(texts("@a @b anna@example.org"), ["@a @b"]);
   assert.deepEqual(texts("@a @b@c"), ["@a"]);
@@ -63,11 +88,6 @@ test("markers with only spaces between them are one citation", () => {
 test("a source repeated in a group counts once", () => {
   assert.deepEqual(findMarkers("@a @b @a")[0].items, [{ id: "a" }, { id: "b" }]);
   assert.deepEqual(findMarkers("@a @a[p. 2]")[0].items, [{ id: "a" }, { id: "a", locator: "2", label: "page" }]);
-});
-
-test("nth and of place a marker among equal texts in its paragraph", () => {
-  const g = findMarkers("First @a, then @ab, then @a and anna@a.example @a");
-  assert.deepEqual(g.map((x) => [x.text, x.nth, x.of]), [["@a", 0, 5], ["@ab", 0, 1], ["@a", 2, 5], ["@a", 4, 5]]);
 });
 
 test("locators in English and German", () => {

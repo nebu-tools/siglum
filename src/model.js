@@ -19,44 +19,31 @@ export const CITE_NEW = "[?]";
 export const BIB_EMPTY = "No sources cited.";
 
 import { runsText } from "./render.js";
+import { KEY } from "./library.js";
 
 /**
  * The store: `sources` maps a key to a CSL-JSON item, `citations` maps a
  * citation's id to its items [{id, locator?, label?, suffix?}], and `settings`
- * holds what belongs to the document, such as `locale`.
+ * holds what belongs to the document: `locale`, the language of its citations
+ * and bibliographies.
  */
-export function emptyStore() {
-  return { sources: {}, citations: {}, settings: {} };
+export function emptyStore(locale) {
+  return { sources: {}, citations: {}, settings: { locale } };
 }
 
 const escapeXml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const unescapeXml = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+const PAYLOAD = new RegExp(`<${ROOT}\\b[^>]*>([\\s\\S]*)</${ROOT}>`);
 
-export function storeToXml(store) {
-  const json = JSON.stringify({ sources: store.sources, citations: store.citations, settings: store.settings ?? {} });
-  return `<?xml version="1.0" encoding="UTF-8"?><${ROOT} xmlns="${NS}">${escapeXml(json)}</${ROOT}>`;
-}
-
-/** The JSON text inside an XML part with the given root element, or null. */
-export function xmlPayload(xml, root) {
-  const m = new RegExp(`<${root}\\b[^>]*>([\\s\\S]*)</${root}>`).exec(xml ?? "");
-  return m && m[1].trim() ? unescapeXml(m[1]) : null;
+export function storeToXml({ sources, citations, settings }) {
+  return `<?xml version="1.0" encoding="UTF-8"?><${ROOT} xmlns="${NS}">${escapeXml(JSON.stringify({ sources, citations, settings }))}</${ROOT}>`;
 }
 
 export function storeFromXml(xml) {
-  const json = xmlPayload(xml, ROOT);
-  if (!json) return emptyStore();
-  const d = JSON.parse(json);
-  return { sources: d.sources ?? {}, citations: d.citations ?? {}, settings: d.settings ?? {} };
-}
-
-/** Two stores as one. Where both have an entry, `b` wins. */
-export function mergeStores(a, b) {
-  return {
-    sources: { ...a.sources, ...b.sources },
-    citations: { ...a.citations, ...b.citations },
-    settings: { ...a.settings, ...b.settings },
-  };
+  const m = PAYLOAD.exec(xml);
+  if (!m) throw new Error("The document's Siglum store is damaged.");
+  const { sources, citations, settings } = JSON.parse(unescapeXml(m[1]));
+  return { sources, citations, settings };
 }
 
 export function newId() {
@@ -82,29 +69,50 @@ export function keysFromTitle(title) {
 // The syntax is Typst's: `@key` cites a source, `@key[p. 12]` adds a
 // supplement, and markers with only spaces between them are one citation.
 
-// Typst's label characters. A key does not end in "." or ":", so the full stop
-// of "see @smith2020." stays in the sentence.
-const KEY = String.raw`[\p{L}\p{N}_\-:.]*[\p{L}\p{N}_\-]`;
-// The lookahead keeps the key whole: `@a@b` is no marker, and neither is a
-// shortened key.
-const MARKER = new RegExp(String.raw`@(${KEY})(?![\p{L}\p{N}_\-@])(?:\[([^\[\]]*)\])?`, "uy");
-// An "@" starts a marker at the start of a word only. "name@example.org" and
-// "example.org/@name" are text.
-const BEFORE = /[\s\u00a0(\[{"'“”„‘’‚«»‹›–—,;]/;
-const GAP = /[ \u00a0]+/y;
+// What may come right before the "@": the start of the paragraph, white
+// space, an opening parenthesis or brace, a quotation mark, a dash, a comma or
+// a semicolon. So "name@example.org" and "example.org/@name" are text.
+const BEFORE = /[\s(\{"'“”„‘’‚«»‹›–—,;]/u;
+// The "@" and its key, which is not cut short: `@a@b` is no marker, and
+// neither is a shortened key. A combining mark belongs to the key it follows,
+// and a key never ends before a joiner, so a marker never ends inside a
+// character as the reader sees it.
+const MARKER = new RegExp(String.raw`@(${KEY})(?![\p{L}\p{M}\p{N}_\-@\u200c\u200d])`, "uy");
+// Only spaces and no-break spaces join markers.
+const GAP = /[  ]+/y;
+// A supplement holds no tab, line break or other control character.
+const CONTROL = /\p{Cc}/u;
+const ATTACHES = /[\p{M}\u200c\u200d]/u;
+
+/**
+ * The end of the balanced brackets that open at `i`, or -1. Brackets inside
+ * count in pairs, as in Typst: `[outer[inner]]` is one supplement.
+ */
+function closing(text, i) {
+  let depth = 0;
+  for (let j = i; j < text.length; j++) {
+    const c = text[j];
+    if (CONTROL.test(c)) return -1;
+    if (c === "[") depth++;
+    else if (c === "]" && --depth === 0) return ATTACHES.test(text[j + 1] ?? "") ? -1 : j + 1;
+  }
+  return -1;
+}
 
 function markerAt(text, i) {
   MARKER.lastIndex = i;
   const m = MARKER.exec(text);
   if (!m) return null;
-  return { item: { id: m[1], ...parseSupplement(m[2] ?? "") }, end: MARKER.lastIndex };
+  const id = m[1].normalize("NFC");
+  const end = text[MARKER.lastIndex] === "[" ? closing(text, MARKER.lastIndex) : -1;
+  if (end === -1) return { item: { id }, end: MARKER.lastIndex };
+  return { item: { id, ...parseSupplement(text.slice(MARKER.lastIndex + 1, end - 1)) }, end };
 }
 
 /**
  * The markers in one paragraph's text, adjacent ones merged into groups:
- * [{start, end, text, items, nth, of}]. `text` is the group as typed. It
- * occurs `of` times in the paragraph, and this group is occurrence `nth`
- * (from 0), which is how the Word layer finds it by search.
+ * [{start, end, text, items}]. `text` is the group as typed, and the keys in
+ * `items` are in Unicode's composed form (NFC), as the library stores them.
  */
 export function findMarkers(text) {
   const groups = [];
@@ -125,19 +133,7 @@ export function findMarkers(text) {
     groups.push({ start: i, end, text: text.slice(i, end), items });
     i = end;
   }
-  for (const g of groups) {
-    const at = occurrences(text, g.text);
-    g.nth = at.indexOf(g.start);
-    g.of = at.length;
-  }
   return groups;
-}
-
-/** Where `needle` starts in `text`, without overlaps, as a search reports it. */
-function occurrences(text, needle) {
-  const at = [];
-  for (let i = text.indexOf(needle); i !== -1; i = text.indexOf(needle, i + needle.length)) at.push(i);
-  return at;
 }
 
 // CSL locator labels and the abbreviations people type for them, English and German.

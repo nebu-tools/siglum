@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { findMarkers } from "../src/model.js";
 import { parseLibrary, parseBibtex, parseRis, latexToText, bibNames, mergeItems, makeKey, fold } from "../src/library.js";
 
 test("LaTeX accents, symbols and markup become text", () => {
@@ -94,6 +95,10 @@ test("merging keeps keys of known works and updates them", () => {
   assert.ok(r.library.smith2021a);
   // A key that a typed marker cannot spell gets a new one.
   assert.deepEqual(Object.keys(mergeItems({}, [{ id: "lee2019.", title: "T", author: [{ family: "Lee" }], issued: { "date-parts": [[2019]] } }]).library), ["lee2019"]);
+  // A key with letters beyond ASCII stays, in composed form, as a marker spells it.
+  const accents = mergeItems({}, [{ id: "müller2020", title: "A" }, { id: "café2", title: "B" }]).library;
+  assert.deepEqual(Object.keys(accents), ["müller2020", "café2"]);
+  assert.deepEqual(Object.keys(accents).map((k) => findMarkers("@" + k)[0].items[0].id), Object.keys(accents));
   // Without ids to compare, an entry under a known key is a correction.
   const fix = mergeItems({ k: { id: "k", title: "Typo" } }, [{ id: "k", title: "Fixed" }]);
   assert.deepEqual(fix.library, { k: { id: "k", title: "Fixed" } });

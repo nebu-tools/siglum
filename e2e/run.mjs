@@ -5,16 +5,15 @@
 //   A  an empty document: citing, typed markers, bibliographies, deleting, track changes, DOI
 //   B  a template with headings and placeholders: one bibliography per section
 //   C  Word reopens B's result: everything still current, citing goes on
-//   D  a document in the old stored format: one refresh upgrades it
 //
-//   npm run e2e        results in dist-e2e/{a,b,c,d}.docx
+//   npm run e2e        results in dist-e2e/{a,b,c}.docx
 import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { serve } from "../scripts/serve.mjs";
-import { BIB_TAG, CITE_PREFIX, NS } from "../src/model.js";
+import { BIB_TAG, CITE_PREFIX } from "../src/model.js";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PS = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe";
@@ -118,17 +117,6 @@ try {
   ok &&= await inWord("B: a template", file("b-in.docx"), file("b.docx"));
   if (ok) ok &&= await inWord("C: B's result, opened again", file("b.docx"), file("c.docx"));
 
-  withPane({ text: "e2e:legacy" }, file("d-in.docx"));
-  ok &&= await inWord("D: a document in the old format", file("d-in.docx"), file("d.docx"));
-  if (ok) {
-    // What the old format looked like comes from the fixture, as in the unit tests.
-    const old = JSON.parse(fs.readFileSync(path.join(root, "test/fixtures/legacy/document.json"), "utf8")).controls.slice(0, 3);
-    const oldNs = /xmlns="([^"]+)"/.exec(fs.readFileSync(path.join(root, "test/fixtures/legacy/store.xml"), "utf8"))[1];
-    const doc = unzipped(file("d.docx"), "word/document.xml");
-    const parts = unzipped(file("d.docx"), "customXml/item*.xml");
-    ok &&= check("D saved: current tags only", tagged(doc, CITE_PREFIX) === 4 && tagged(doc, BIB_TAG + '"') === 1 && old.every((c) => tagged(doc, c.tag + '"') === 0), old.map((c) => tagged(doc, c.tag + '"')));
-    ok &&= check("D saved: the store is in the current part only", parts.includes(`xmlns="${NS}"`) && !parts.includes(oldNs));
-  }
 } finally {
   server.close();
 }

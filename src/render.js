@@ -112,7 +112,7 @@ export function createRenderer({ style, locales }) {
 
 function citationItem(x) {
   const item = { id: x.id };
-  if (x.locator) { item.locator = x.locator; item.label = x.label ?? "page"; }
+  if (x.locator) { item.locator = x.locator; item.label = x.label; }
   if (x.suffix) item.suffix = ", " + x.suffix;
   return item;
 }

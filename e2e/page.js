@@ -2,10 +2,7 @@
 // the pane like a user would and reports each check to the e2e server.
 /* global Word */
 
-import { BIB_TAG, CITE_PREFIX, NS } from "../src/model.js";
-// A document as the version before the stored format was renamed left it.
-import legacyXml from "../test/fixtures/legacy/store.xml";
-import legacyDoc from "../test/fixtures/legacy/document.json";
+import { BIB_TAG, CITE_PREFIX } from "../src/model.js";
 
 // The checks read the pane in English, whatever language Office has.
 try { localStorage.setItem("siglum.language", "en"); } catch { /* The checks on status texts then fail and say so. */ }
@@ -440,56 +437,6 @@ async function verifyScenario() {
   check("reopened: cite again", JSON.stringify(await citeTexts()) === JSON.stringify(["[1]", "[2]", "[1]", "[2,3]"]) && bibs[1].length === 3 && /^1\.\s*Alpine Survey Office\. Snow depth data/.test(bibs[1][0]), { cites: await citeTexts(), bibs });
 }
 
-// A document in the old stored format, built from the unit tests' fixture:
-// one refresh upgrades the store, the tags and the typed markers.
-async function legacyScenario() {
-  const oldNs = /xmlns="([^"]+)"/.exec(legacyXml)[1];
-  const [one, two, oldBib, foreign] = legacyDoc.controls;
-  await word(async (c) => {
-    const b = c.document.body;
-    b.clear();
-    c.document.changeTrackingMode = "Off";
-    c.document.customXmlParts.add(legacyXml);
-    const control = (range, { tag, title }) => { const cc = range.insertContentControl(); cc.tag = tag; cc.title = title; };
-    const p1 = b.insertParagraph("First claim.", "Start");
-    control(p1.insertText(one.text, "End"), one);
-    const p2 = b.insertParagraph("Second claim.", "End");
-    control(p2.insertText(two.text, "End"), two);
-    for (const text of legacyDoc.paragraphs) b.insertParagraph(text, "End");
-    control(b.insertParagraph("An old bibliography.", "End"), oldBib);
-    control(b.insertParagraph(foreign.text, "End"), foreign);
-    await c.sync();
-  });
-  $("refresh").click();
-  await idle();
-
-  const state = await word(async (c) => {
-    const all = c.document.body.contentControls;
-    all.load("items/tag,items/title");
-    const now = c.document.customXmlParts.getByNamespace(NS);
-    const old = c.document.customXmlParts.getByNamespace(oldNs);
-    now.load("items");
-    old.load("items");
-    c.document.body.load("text");
-    await c.sync();
-    return { tags: all.items.map((x) => x.tag), titles: all.items.map((x) => x.title), now: now.items.length, old: old.items.length, text: c.document.body.text };
-  });
-  const oldTags = [one.tag, two.tag, oldBib.tag];
-  const cites = state.tags.filter((t) => t.startsWith(CITE_PREFIX)).length;
-  check("legacy: store moved to the current part", state.now === 1 && state.old === 0 && last && Object.keys(last.store.sources).length > 0 && last.store.settings.locale === "de-DE", { now: state.now, old: state.old, settings: last?.store.settings });
-  check("legacy: tags and titles renamed", !state.tags.some((t) => oldTags.includes(t)) && cites >= 2 && state.tags.filter((t) => t === BIB_TAG).length === 1
-    && state.tags.includes(foreign.tag) && state.titles.filter((t) => t.startsWith("Cite: ")).length === cites, state);
-  const texts = await citeTexts();
-  check("legacy: old citations and old markers are cited", last?.converted > 0 && texts.length === cites && texts.every((t) => /^\[\d+([,\u2013-]\d+)*\]$/.test(t)), { texts, converted: last?.converted, status: $("status").textContent });
-  check("legacy: no old marker is left", !/\[@[A-Za-z0-9]/.test(state.text), state.text);
-  const bibs = await bibTexts();
-  check("legacy: one bibliography with entries", bibs.length === 1 && bibs[0].length > 0 && /^1\.\s/.test(bibs[0][0]), bibs);
-
-  $("refresh").click();
-  await idle();
-  check("legacy: a second refresh writes nothing", last && last.citations.length === 0 && last.bibs.length === 0 && !last.converted, last && { c: last.citations.length, b: last.bibs.length, converted: last.converted });
-}
-
 /** The runner names the scenario in the document's text. A document with citations was saved by an earlier one. */
 async function mode() {
   return word(async (c) => {
@@ -498,7 +445,7 @@ async function mode() {
     c.document.body.load("text");
     await c.sync();
     if (all.items.some(isCite)) return "verify";
-    return /e2e:(template|legacy)/.exec(c.document.body.text)?.[1] ?? "main";
+    return /e2e:(template)/.exec(c.document.body.text)?.[1] ?? "main";
   });
 }
 
@@ -506,7 +453,7 @@ document.addEventListener("siglum:ready", async () => {
   const m = await mode();
   post({ stage: "ready", mode: m });
   try {
-    await { main: scenario, template: templateScenario, verify: verifyScenario, legacy: legacyScenario }[m]();
+    await { main: scenario, template: templateScenario, verify: verifyScenario }[m]();
   } catch (e) {
     check("scenario", false, String(e && (e.stack || e.message || e)));
   }
