@@ -1,0 +1,231 @@
+{
+ "session": "limits",
+ "steps": [
+  "limits"
+ ],
+ "runs": 3,
+ "generated": {
+  "variant": "mini",
+  "fileBytes": 5165
+ },
+ "word": {
+  "startSeconds": 2.0782813,
+  "version": "16.0",
+  "build": "16.0.20326",
+  "pid": 23044,
+  "openSeconds": 0.22356679999999998,
+  "stalls": [
+   [
+    10.2,
+    1030
+   ],
+   [
+    15.9,
+    1130
+   ]
+  ],
+  "paneSeconds": 17.5111037,
+  "peakWorkingSetMB": 2454,
+  "privateMB": 204,
+  "saveSeconds": 0.0889589
+ },
+ "code": 0,
+ "ok": true,
+ "seconds": 24.039,
+ "rows": [
+  {
+   "at": 4458,
+   "k": "limits: customXmlParts.add of 1 MB",
+   "v": {
+    "ms": 39,
+    "id": "{0F0928C2-2233-45C1-B131-475FB20A3AE4}",
+    "chars": 1048614
+   }
+  },
+  {
+   "at": 4494,
+   "k": "limits: getXml of the 1 MB part",
+   "v": {
+    "ms": 36,
+    "chars": 1048614
+   }
+  },
+  {
+   "at": 4533,
+   "k": "limits: setXml of the 1 MB part",
+   "v": {
+    "ms": 39
+   }
+  },
+  {
+   "at": 4541,
+   "k": "limits: delete the 1 MB part",
+   "v": {
+    "ms": 8
+   }
+  },
+  {
+   "at": 4712,
+   "k": "limits: customXmlParts.add of 5 MB",
+   "v": {
+    "ms": 170,
+    "id": "{E6197A9E-E667-4554-9D16-ABC27EA24716}",
+    "chars": 5242918
+   }
+  },
+  {
+   "at": 4860,
+   "k": "limits: getXml of the 5 MB part",
+   "v": {
+    "ms": 148,
+    "chars": 5242918
+   }
+  },
+  {
+   "at": 5040,
+   "k": "limits: setXml of the 5 MB part",
+   "v": {
+    "ms": 181
+   }
+  },
+  {
+   "at": 5052,
+   "k": "limits: delete the 5 MB part",
+   "v": {
+    "ms": 11
+   }
+  },
+  {
+   "at": 5753,
+   "k": "limits: customXmlParts.add of 20 MB",
+   "v": {
+    "ms": 700,
+    "id": "{92C1D75E-3EF0-408E-9B25-6FA6F58CB6DA}",
+    "chars": 20971558
+   }
+  },
+  {
+   "at": 6301,
+   "k": "limits: getXml of the 20 MB part",
+   "v": {
+    "ms": 548,
+    "chars": 20971558
+   }
+  },
+  {
+   "at": 6967,
+   "k": "limits: setXml of the 20 MB part",
+   "v": {
+    "ms": 665
+   }
+  },
+  {
+   "at": 6993,
+   "k": "limits: delete the 20 MB part",
+   "v": {
+    "ms": 26
+   }
+  },
+  {
+   "at": 8644,
+   "k": "limits: customXmlParts.add of 50 MB",
+   "v": {
+    "ms": 1651,
+    "id": "{03FC856B-955D-4F0C-8440-F15BD49DC651}",
+    "chars": 52428838
+   }
+  },
+  {
+   "at": 10010,
+   "k": "limits: getXml of the 50 MB part",
+   "v": {
+    "ms": 1365,
+    "chars": 52428838
+   }
+  },
+  {
+   "at": 11655,
+   "k": "limits: setXml of the 50 MB part",
+   "v": {
+    "ms": 1644
+   }
+  },
+  {
+   "at": 11729,
+   "k": "limits: delete the 50 MB part",
+   "v": {
+    "ms": 74
+   }
+  },
+  {
+   "at": 15081,
+   "k": "limits: customXmlParts.add of 100 MB",
+   "v": {
+    "ms": 3352,
+    "id": "{D6FFBEB3-3CAB-4700-9483-CA098C1B4A0A}",
+    "chars": 104857638
+   }
+  },
+  {
+   "at": 17647,
+   "k": "limits: getXml of the 100 MB part",
+   "v": {
+    "ms": 2566,
+    "chars": 104857638
+   }
+  },
+  {
+   "at": 20799,
+   "k": "limits: setXml of the 100 MB part",
+   "v": {
+    "ms": 3151
+   }
+  },
+  {
+   "at": 20941,
+   "k": "limits: delete the 100 MB part",
+   "v": {
+    "ms": 143
+   }
+  }
+ ],
+ "file": {
+  "bytes": 15204,
+  "documentXmlBytes": 4355,
+  "storeParts": 1,
+  "controls": 4,
+  "textDiffersFromStore": 1,
+  "differExamples": [
+   [
+    "r1",
+    "Author B et al.",
+    "&lt;?xml version=\"1.0\" standalone=\"yes\"?&gt;&lt;?mso-application progid=\"Word.Do"
+   ]
+  ],
+  "sample": [
+   [
+    "ru",
+    "[ru]",
+    null
+   ],
+   [
+    "e1",
+    "[e1 from part]",
+    "[e1 from part]"
+   ],
+   [
+    "r1",
+    "Author B et al.",
+    "&lt;?xml version=\"1.0\" standalone=\"yes\"?&gt;&lt;?mso-application progid=\"Word.Do"
+   ]
+  ],
+  "dataBindings": 1,
+  "revisions": {
+   "ins": 0,
+   "del": 0
+  },
+  "authors": [],
+  "core": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:dcterms=\"http://purl.org/dc/terms/\" xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><cp:lastModifiedBy></cp:lastModifiedBy><cp:revision>1</cp:revision><dcterms:created xsi:type=\"dcterms:W3CDTF\">2026-11-18T10:29:00Z</dcterms:created><dcterms:modified xsi:type=\"dcterms:W3CDTF\">2026-11-18T10:29:00Z</dcterms:modified></cp:coreProperties>",
+  "appCompany": false
+ }
+}

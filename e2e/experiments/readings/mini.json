@@ -1,0 +1,208 @@
+{
+ "session": "mini",
+ "steps": [
+  "mini"
+ ],
+ "runs": 3,
+ "generated": {
+  "variant": "mini",
+  "fileBytes": 5165
+ },
+ "word": {
+  "startSeconds": 1.2252631999999999,
+  "version": "16.0",
+  "build": "16.0.20326",
+  "pid": 64308,
+  "openSeconds": 0.37725319999999996,
+  "stalls": [],
+  "paneSeconds": 1.7455783,
+  "peakWorkingSetMB": 243,
+  "privateMB": 187,
+  "saveSeconds": 0.1317711
+ },
+ "code": 0,
+ "ok": true,
+ "seconds": 9.022,
+ "rows": [
+  {
+   "at": 5435,
+   "k": "mini: every story (Word's object model)",
+   "v": [
+    [
+     "exp:cite:ru",
+     0,
+     "[ru]",
+     false
+    ],
+    [
+     "exp:cite:pu",
+     1,
+     "[pu]",
+     false
+    ],
+    [
+     "exp:cite:e1",
+     1,
+     "[e1 from part]",
+     true
+    ],
+    [
+     "exp:cite:r1",
+     0,
+     "Author B et al.",
+     true
+    ]
+   ]
+  },
+  {
+   "at": 5436,
+   "k": "mini: body.contentControls",
+   "v": {
+    "ms": 4,
+    "rows": [
+     [
+      "exp:cite:ru",
+      "RichText",
+      "[ru]"
+     ],
+     [
+      "exp:cite:r1",
+      "RichText",
+      "Author B et al."
+     ]
+    ]
+   }
+  },
+  {
+   "at": 5447,
+   "k": "mini: document.contentControls",
+   "v": {
+    "ms": 10,
+    "rows": [
+     [
+      "exp:cite:ru",
+      "RichText",
+      "[ru]"
+     ],
+     [
+      "exp:cite:r1",
+      "RichText",
+      "Author B et al."
+     ]
+    ]
+   }
+  },
+  {
+   "at": 5461,
+   "k": "mini: body.paragraphs first .contentControls",
+   "v": {
+    "ms": 13,
+    "rows": [
+     [
+      "exp:cite:ru",
+      "RichText",
+      "[ru]"
+     ],
+     [
+      "exp:cite:r1",
+      "RichText",
+      "Author B et al."
+     ]
+    ]
+   }
+  },
+  {
+   "at": 5472,
+   "k": "mini: getContentControls()",
+   "v": {
+    "ms": 11,
+    "rows": [
+     [
+      "exp:cite:ru",
+      "RichText",
+      "[ru]"
+     ],
+     [
+      "exp:cite:pu",
+      "PlainText",
+      "[pu]"
+     ],
+     [
+      "exp:cite:e1",
+      "PlainText",
+      "[e1 from part]"
+     ],
+     [
+      "exp:cite:r1",
+      "RichText",
+      "Author B et al."
+     ]
+    ]
+   }
+  },
+  {
+   "at": 5483,
+   "k": "mini: getByTag e1",
+   "v": {
+    "ms": 11,
+    "rows": []
+   }
+  },
+  {
+   "at": 5485,
+   "k": "mini: getByTag pu",
+   "v": {
+    "ms": 2,
+    "rows": []
+   }
+  },
+  {
+   "at": 5536,
+   "k": "mini: getOoxml of the body: sdts in it",
+   "v": {
+    "ms": 49,
+    "sdts": 4,
+    "bindings": 2
+   }
+  }
+ ],
+ "file": {
+  "bytes": 15212,
+  "documentXmlBytes": 4355,
+  "storeParts": 1,
+  "controls": 4,
+  "textDiffersFromStore": 1,
+  "differExamples": [
+   [
+    "r1",
+    "Author B et al.",
+    "&lt;?xml version=\"1.0\" standalone=\"yes\"?&gt;&lt;?mso-application progid=\"Word.Do"
+   ]
+  ],
+  "sample": [
+   [
+    "ru",
+    "[ru]",
+    null
+   ],
+   [
+    "e1",
+    "[e1 from part]",
+    "[e1 from part]"
+   ],
+   [
+    "r1",
+    "Author B et al.",
+    "&lt;?xml version=\"1.0\" standalone=\"yes\"?&gt;&lt;?mso-application progid=\"Word.Do"
+   ]
+  ],
+  "dataBindings": 1,
+  "revisions": {
+   "ins": 0,
+   "del": 0
+  },
+  "authors": [],
+  "core": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:dcterms=\"http://purl.org/dc/terms/\" xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><cp:lastModifiedBy></cp:lastModifiedBy><cp:revision>1</cp:revision><dcterms:created xsi:type=\"dcterms:W3CDTF\">2026-11-18T07:37:00Z</dcterms:created><dcterms:modified xsi:type=\"dcterms:W3CDTF\">2026-11-18T07:37:00Z</dcterms:modified></cp:coreProperties>",
+  "appCompany": false
+ }
+}

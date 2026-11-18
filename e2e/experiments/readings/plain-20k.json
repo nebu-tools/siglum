@@ -1,0 +1,294 @@
+{
+ "session": "plain-20k",
+ "steps": [
+  "open",
+  "timing"
+ ],
+ "runs": 1,
+ "generated": {
+  "pages": 500,
+  "paragraphs": 2500,
+  "citations": 20000,
+  "bibs": 6,
+  "refs": 2000,
+  "cited": 885,
+  "storeBytes": 707312,
+  "documentBytes": 10647195,
+  "nodeRenderMs": 2468,
+  "stale": false,
+  "fresh": [
+   "okafor2014c",
+   "kowalski1995",
+   "kowalski2004a",
+   "andersen2002",
+   "brown2002b",
+   "andersen2002a",
+   "haddad2006c",
+   "smith2022c"
+  ],
+  "variant": "plain",
+  "xpath": "id",
+  "fileBytes": 1261253
+ },
+ "word": {
+  "startSeconds": 2.4585041999999997,
+  "version": "16.0",
+  "build": "16.0.20326",
+  "pid": 64084,
+  "openSeconds": 679.2949193,
+  "stalls": [
+   [
+    1.7,
+    1777
+   ],
+   [
+    3.8,
+    1831
+   ],
+   [
+    6.7,
+    1640
+   ],
+   [
+    12.7,
+    1766
+   ],
+   [
+    15.8,
+    626115
+   ],
+   [
+    642.2,
+    1741
+   ],
+   [
+    764.7,
+    1769
+   ],
+   [
+    768.3,
+    633939
+   ],
+   [
+    1402.5,
+    1762
+   ],
+   [
+    2603,
+    2053
+   ]
+  ],
+  "paneSeconds": 2606.7070704,
+  "peakWorkingSetMB": 649,
+  "privateMB": 427,
+  "saveSeconds": 403.6276023
+ },
+ "code": 0,
+ "ok": true,
+ "seconds": 3697.498,
+ "rows": [
+  {
+   "at": 684912,
+   "k": "requirement sets",
+   "v": {
+    "WordApi": "1.3,1.4,1.5,1.6,1.7,1.8,1.9",
+    "WordApiDesktop": "1.1,1.2,1.3,1.4",
+    "WordApiHiddenDocument": "1.5",
+    "CustomXmlParts": "1.1",
+    "diagnostics": {
+     "host": "Word",
+     "version": "16.0.20326.20318",
+     "platform": "PC"
+    }
+   }
+  },
+  {
+   "at": 687381,
+   "k": "open: first read of every control (tag, text)",
+   "v": {
+    "ms": 2148,
+    "controls": 20006
+   }
+  },
+  {
+   "at": 687382,
+   "k": "open: read the part",
+   "v": {
+    "ms": 61,
+    "parts": 1,
+    "id": "{5E1A9C3B-0000-4000-8000-0000000000B1}",
+    "bytes": 707284
+   }
+  },
+  {
+   "at": 689170,
+   "k": "open: check every control against the part",
+   "v": {
+    "ms": 2024,
+    "wrong": 0,
+    "examples": []
+   }
+  },
+  {
+   "at": 695104,
+   "k": "insertText into 100 bound controls",
+   "v": {
+    "ms": 5600,
+    "perMs": 31.4,
+    "partValueAfter": "[it]"
+   }
+  },
+  {
+   "at": 698972,
+   "k": "write one via nodeSingle",
+   "v": {
+    "writer": "nodeSingle",
+    "changed": 1,
+    "returnMs": 743,
+    "jsCheckMs": 2160,
+    "jsWrongRightAfter": 0,
+    "comPingMs": 376,
+    "allShownMs": 3892,
+    "comTailRight": [
+     true,
+     true,
+     true
+    ],
+    "wrong": 0,
+    "examples": [],
+    "run": 1
+   }
+  },
+  {
+   "at": 1328549,
+   "k": "write one via setXml",
+   "v": {
+    "writer": "setXml",
+    "changed": 1,
+    "returnMs": 473291,
+    "jsCheckMs": 155201,
+    "jsWrongRightAfter": 0,
+    "comPingMs": 580,
+    "allShownMs": 629578,
+    "comTailRight": [
+     true,
+     true,
+     true
+    ],
+    "wrong": 0,
+    "examples": [],
+    "run": 1
+   }
+  },
+  {
+   "at": 1451518,
+   "k": "write tenth via nodeSingle",
+   "v": {
+    "writer": "nodeSingle",
+    "changed": 2000,
+    "returnMs": 119408,
+    "jsCheckMs": 2052,
+    "jsWrongRightAfter": 0,
+    "comPingMs": 514,
+    "allShownMs": 122968,
+    "comTailRight": [
+     true,
+     true,
+     true
+    ],
+    "wrong": 0,
+    "examples": [],
+    "run": 1
+   }
+  },
+  {
+   "at": 1451518,
+   "k": "write tenth via setXml",
+   "v": {
+    "skipped": "the last write with this writer took more than 60 s"
+   }
+  },
+  {
+   "at": 2088717,
+   "k": "write none via setXml",
+   "v": {
+    "writer": "setXml",
+    "changed": 0,
+    "returnMs": 480732,
+    "jsCheckMs": 155602,
+    "jsWrongRightAfter": 0,
+    "comPingMs": 516,
+    "allShownMs": 637198,
+    "comTailRight": [
+     true,
+     true,
+     true
+    ],
+    "wrong": 0,
+    "examples": [],
+    "run": 1
+   }
+  },
+  {
+   "at": 3289616,
+   "k": "write all via nodeSingle",
+   "v": {
+    "writer": "nodeSingle",
+    "changed": 20000,
+    "returnMs": 1197441,
+    "jsCheckMs": 2361,
+    "jsWrongRightAfter": 0,
+    "comPingMs": 532,
+    "allShownMs": 1200898,
+    "comTailRight": [
+     true,
+     true,
+     true
+    ],
+    "wrong": 0,
+    "examples": [],
+    "run": 1
+   }
+  },
+  {
+   "at": 3289616,
+   "k": "timing total",
+   "v": {
+    "ms": 2600470
+   }
+  }
+ ],
+ "file": {
+  "bytes": 1375057,
+  "documentXmlBytes": 11253041,
+  "storeParts": 1,
+  "controls": 20000,
+  "textDiffersFromStore": 0,
+  "differExamples": [],
+  "sample": [
+   [
+    "edlgxz8ijf0",
+    "[5.0]",
+    "[5.0]"
+   ],
+   [
+    "e54yp88ild7pu",
+    "[5.10000]",
+    "[5.10000]"
+   ],
+   [
+    "vckhhb8injffo",
+    "[5.19999]",
+    "[5.19999]"
+   ]
+  ],
+  "dataBindings": 20000,
+  "revisions": {
+   "ins": 0,
+   "del": 0
+  },
+  "authors": [],
+  "core": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:dcterms=\"http://purl.org/dc/terms/\" xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><cp:lastModifiedBy></cp:lastModifiedBy><cp:revision>1</cp:revision><dcterms:created xsi:type=\"dcterms:W3CDTF\">2026-11-18T15:05:00Z</dcterms:created><dcterms:modified xsi:type=\"dcterms:W3CDTF\">2026-11-18T15:05:00Z</dcterms:modified></cp:coreProperties>",
+  "appCompany": false
+ }
+}

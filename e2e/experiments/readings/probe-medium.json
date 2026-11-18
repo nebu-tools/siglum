@@ -1,0 +1,670 @@
+{
+ "session": "probe-medium",
+ "steps": [
+  "open",
+  "timing"
+ ],
+ "runs": 1,
+ "generated": {
+  "pages": 150,
+  "paragraphs": 750,
+  "citations": 1000,
+  "bibs": 3,
+  "refs": 500,
+  "cited": 421,
+  "storeBytes": 34176,
+  "documentBytes": 1077243,
+  "nodeRenderMs": 2637,
+  "stale": false,
+  "fresh": [
+   "schmidt1995",
+   "mueller2007a",
+   "mueller2024",
+   "weber2003",
+   "mueller1998",
+   "fischer2013",
+   "weber2015",
+   "tanaka2017"
+  ],
+  "variant": "plain",
+  "xpath": "id",
+  "fileBytes": 187143
+ },
+ "word": {
+  "startSeconds": 1.3483044,
+  "version": "16.0",
+  "build": "16.0.20326",
+  "pid": 9140,
+  "openSeconds": 3.8812501,
+  "stalls": [
+   [
+    2.6,
+    2306
+   ],
+   [
+    6.5,
+    3395
+   ],
+   [
+    11.2,
+    2915
+   ],
+   [
+    14.9,
+    4922
+   ],
+   [
+    20.1,
+    4270
+   ],
+   [
+    24.6,
+    3693
+   ],
+   [
+    28.6,
+    3937
+   ],
+   [
+    32.8,
+    3739
+   ],
+   [
+    36.8,
+    3016
+   ],
+   [
+    40,
+    2468
+   ],
+   [
+    42.8,
+    1987
+   ],
+   [
+    45,
+    1271
+   ],
+   [
+    48,
+    8672
+   ],
+   [
+    57.6,
+    5185
+   ],
+   [
+    63.1,
+    4495
+   ],
+   [
+    67.8,
+    4419
+   ],
+   [
+    72.5,
+    4389
+   ],
+   [
+    77.2,
+    4342
+   ],
+   [
+    81.8,
+    4168
+   ],
+   [
+    86.2,
+    4613
+   ],
+   [
+    91.1,
+    4366
+   ],
+   [
+    95.7,
+    4100
+   ],
+   [
+    100.1,
+    4587
+   ],
+   [
+    104.9,
+    4605
+   ],
+   [
+    109.8,
+    3650
+   ],
+   [
+    113.7,
+    3462
+   ],
+   [
+    117.4,
+    3116
+   ],
+   [
+    120.8,
+    2809
+   ],
+   [
+    123.9,
+    2671
+   ],
+   [
+    126.8,
+    2835
+   ],
+   [
+    129.9,
+    2415
+   ],
+   [
+    132.6,
+    2476
+   ],
+   [
+    135.3,
+    2494
+   ],
+   [
+    138.1,
+    2584
+   ],
+   [
+    140.9,
+    2845
+   ],
+   [
+    144,
+    2646
+   ],
+   [
+    146.9,
+    2400
+   ],
+   [
+    149.6,
+    2320
+   ],
+   [
+    152.1,
+    2282
+   ],
+   [
+    154.7,
+    2205
+   ],
+   [
+    159.5,
+    2654
+   ],
+   [
+    162.4,
+    2375
+   ],
+   [
+    165,
+    2257
+   ],
+   [
+    167.6,
+    2211
+   ],
+   [
+    170,
+    2704
+   ],
+   [
+    173,
+    2670
+   ],
+   [
+    175.9,
+    2385
+   ],
+   [
+    178.6,
+    1833
+   ],
+   [
+    180.7,
+    1786
+   ],
+   [
+    182.7,
+    2089
+   ],
+   [
+    185.1,
+    2240
+   ],
+   [
+    187.6,
+    2179
+   ],
+   [
+    190,
+    2627
+   ],
+   [
+    192.9,
+    2723
+   ],
+   [
+    195.9,
+    2167
+   ],
+   [
+    198.3,
+    2049
+   ],
+   [
+    200.6,
+    2269
+   ],
+   [
+    203.1,
+    2438
+   ],
+   [
+    205.8,
+    1935
+   ],
+   [
+    208,
+    2122
+   ],
+   [
+    210.4,
+    2660
+   ],
+   [
+    213.3,
+    2881
+   ],
+   [
+    216.5,
+    2294
+   ],
+   [
+    219,
+    2378
+   ],
+   [
+    221.7,
+    2234
+   ],
+   [
+    224.2,
+    1815
+   ],
+   [
+    226.2,
+    1615
+   ],
+   [
+    228.1,
+    1658
+   ],
+   [
+    230,
+    1697
+   ],
+   [
+    232,
+    1464
+   ],
+   [
+    233.7,
+    1430
+   ],
+   [
+    235.4,
+    1681
+   ],
+   [
+    237.3,
+    1691
+   ],
+   [
+    239.3,
+    1756
+   ],
+   [
+    241.3,
+    1395
+   ],
+   [
+    243,
+    1289
+   ],
+   [
+    244.5,
+    1181
+   ],
+   [
+    245.9,
+    1252
+   ],
+   [
+    247.5,
+    1216
+   ],
+   [
+    248.9,
+    1144
+   ],
+   [
+    250.3,
+    1204
+   ],
+   [
+    251.8,
+    1300
+   ],
+   [
+    253.4,
+    1327
+   ],
+   [
+    255,
+    1511
+   ],
+   [
+    256.7,
+    1229
+   ],
+   [
+    258.2,
+    1052
+   ],
+   [
+    263.1,
+    1073
+   ],
+   [
+    264.5,
+    1086
+   ],
+   [
+    281.6,
+    2404
+   ],
+   [
+    284.9,
+    59437
+   ]
+  ],
+  "paneSeconds": 345.4652233,
+  "peakWorkingSetMB": 581,
+  "privateMB": 518,
+  "saveSeconds": 1.4744434
+ },
+ "code": 0,
+ "ok": true,
+ "seconds": 358.078,
+ "rows": [
+  {
+   "at": 9034,
+   "k": "requirement sets",
+   "v": {
+    "WordApi": "1.3,1.4,1.5,1.6,1.7,1.8,1.9",
+    "WordApiDesktop": "1.1,1.2,1.3,1.4",
+    "WordApiHiddenDocument": "1.5",
+    "CustomXmlParts": "1.1",
+    "diagnostics": {
+     "host": "Word",
+     "version": "16.0.20326.20318",
+     "platform": "PC"
+    }
+   }
+  },
+  {
+   "at": 9263,
+   "k": "open: first read of every control (tag, text)",
+   "v": {
+    "ms": 229,
+    "controls": 1003
+   }
+  },
+  {
+   "at": 9272,
+   "k": "open: read the part",
+   "v": {
+    "ms": 9,
+    "parts": 1,
+    "id": "{5E1A9C3B-0000-4000-8000-0000000000B1}",
+    "bytes": 34160
+   }
+  },
+  {
+   "at": 9475,
+   "k": "open: check every control against the part",
+   "v": {
+    "ms": 202,
+    "wrong": 0,
+    "examples": []
+   }
+  },
+  {
+   "at": 10600,
+   "k": "insertText into 100 bound controls",
+   "v": {
+    "ms": 1087,
+    "perMs": 8.8,
+    "partValueAfter": "[it]"
+   }
+  },
+  {
+   "at": 14525,
+   "k": "write one via setXml",
+   "v": {
+    "writer": "setXml",
+    "changed": 1,
+    "returnMs": 1725,
+    "jsCheckMs": 1180,
+    "jsWrongRightAfter": 0,
+    "comPingMs": 484,
+    "allShownMs": 3922,
+    "comTailRight": [
+     true,
+     true,
+     true
+    ],
+    "wrong": 0,
+    "examples": [],
+    "run": 1
+   }
+  },
+  {
+   "at": 19175,
+   "k": "write one via updateElement",
+   "v": {
+    "writer": "updateElement",
+    "changed": 1,
+    "returnMs": 3069,
+    "jsCheckMs": 835,
+    "jsWrongRightAfter": 0,
+    "comPingMs": 355,
+    "allShownMs": 4651,
+    "comTailRight": [
+     true,
+     true,
+     true
+    ],
+    "wrong": 0,
+    "examples": [],
+    "run": 1
+   }
+  },
+  {
+   "at": 22896,
+   "k": "write 10 via setXml",
+   "v": {
+    "writer": "setXml",
+    "changed": 10,
+    "returnMs": 1901,
+    "jsCheckMs": 1424,
+    "jsWrongRightAfter": 0,
+    "comPingMs": 120,
+    "allShownMs": 3724,
+    "comTailRight": [
+     true,
+     true,
+     true
+    ],
+    "wrong": 0,
+    "examples": [],
+    "run": 1
+   }
+  },
+  {
+   "at": 55987,
+   "k": "write 10 via updateElement",
+   "v": {
+    "writer": "updateElement",
+    "changed": 10,
+    "returnMs": 32264,
+    "jsCheckMs": 384,
+    "jsWrongRightAfter": 0,
+    "comPingMs": 69,
+    "allShownMs": 33090,
+    "comTailRight": [
+     true,
+     true,
+     true
+    ],
+    "wrong": 0,
+    "examples": [],
+    "run": 1
+   }
+  },
+  {
+   "at": 65661,
+   "k": "write 100 via setXml",
+   "v": {
+    "writer": "setXml",
+    "changed": 100,
+    "returnMs": 1828,
+    "jsCheckMs": 7310,
+    "jsWrongRightAfter": 0,
+    "comPingMs": 79,
+    "allShownMs": 9671,
+    "comTailRight": [
+     true,
+     true,
+     true
+    ],
+    "wrong": 0,
+    "examples": [],
+    "run": 1
+   }
+  },
+  {
+   "at": 289669,
+   "k": "write 100 via updateElement",
+   "v": {
+    "writer": "updateElement",
+    "changed": 100,
+    "returnMs": 223024,
+    "jsCheckMs": 222,
+    "jsWrongRightAfter": 0,
+    "comPingMs": 391,
+    "allShownMs": 224009,
+    "comTailRight": [
+     true,
+     true,
+     true
+    ],
+    "wrong": 0,
+    "examples": [],
+    "run": 1
+   }
+  },
+  {
+   "at": 292883,
+   "k": "write none via setXml",
+   "v": {
+    "writer": "setXml",
+    "changed": 0,
+    "returnMs": 1837,
+    "jsCheckMs": 972,
+    "jsWrongRightAfter": 0,
+    "comPingMs": 98,
+    "allShownMs": 3215,
+    "comTailRight": [
+     true,
+     true,
+     true
+    ],
+    "wrong": 0,
+    "examples": [],
+    "run": 1
+   }
+  },
+  {
+   "at": 353394,
+   "k": "write all via setXml",
+   "v": {
+    "writer": "setXml",
+    "changed": 1000,
+    "returnMs": 1908,
+    "jsCheckMs": 57956,
+    "jsWrongRightAfter": 0,
+    "comPingMs": 401,
+    "allShownMs": 60511,
+    "comTailRight": [
+     true,
+     true,
+     true
+    ],
+    "wrong": 0,
+    "examples": [],
+    "run": 1
+   }
+  },
+  {
+   "at": 353394,
+   "k": "timing total",
+   "v": {
+    "ms": 343920
+   }
+  }
+ ],
+ "file": {
+  "bytes": 228442,
+  "documentXmlBytes": 1191014,
+  "storeParts": 1,
+  "controls": 1000,
+  "textDiffersFromStore": 0,
+  "differExamples": [],
+  "sample": [
+   [
+    "1dmq8pwaki0",
+    "[8.0]",
+    "[8.0]"
+   ],
+   [
+    "vff7yfwalbdx",
+    "[8.500]",
+    "[8.500]"
+   ],
+   [
+    "cjx2p2wamcrt",
+    "[8.999]",
+    "[8.999]"
+   ]
+  ],
+  "dataBindings": 1000,
+  "revisions": {
+   "ins": 0,
+   "del": 0
+  },
+  "authors": [],
+  "core": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:dcterms=\"http://purl.org/dc/terms/\" xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><cp:lastModifiedBy></cp:lastModifiedBy><cp:revision>1</cp:revision><dcterms:created xsi:type=\"dcterms:W3CDTF\">2026-11-18T08:03:00Z</dcterms:created><dcterms:modified xsi:type=\"dcterms:W3CDTF\">2026-11-18T08:03:00Z</dcterms:modified></cp:coreProperties>",
+  "appCompany": false
+ }
+}

@@ -1,0 +1,377 @@
+{
+ "session": "body-ooxml",
+ "steps": [
+  "open",
+  "bodyooxml"
+ ],
+ "runs": 3,
+ "generated": {
+  "pages": 500,
+  "paragraphs": 2500,
+  "citations": 4000,
+  "bibs": 6,
+  "refs": 2000,
+  "cited": 841,
+  "storeBytes": 0,
+  "documentBytes": 3106925,
+  "nodeRenderMs": 1836,
+  "stale": false,
+  "fresh": [
+   "haddad1998",
+   "fischer2001",
+   "rossi2023",
+   "smith2022",
+   "mueller2007c",
+   "okafor2020c",
+   "silva2017",
+   "mueller2024a"
+  ],
+  "variant": "unbound",
+  "xpath": "id",
+  "fileBytes": 565482
+ },
+ "word": {
+  "startSeconds": 0.7565858,
+  "version": "16.0",
+  "build": "16.0.20326",
+  "pid": 60016,
+  "openSeconds": 2.5652993,
+  "stalls": [
+   [
+    19.5,
+    4147
+   ],
+   [
+    45.6,
+    4906
+   ],
+   [
+    73,
+    5569
+   ]
+  ],
+  "paneSeconds": 105.416563,
+  "peakWorkingSetMB": 394,
+  "privateMB": 290,
+  "saveSeconds": 0.9552807999999999
+ },
+ "code": 0,
+ "ok": true,
+ "seconds": 114.2,
+ "rows": [
+  {
+   "at": 6592,
+   "k": "requirement sets",
+   "v": {
+    "WordApi": "1.3,1.4,1.5,1.6,1.7,1.8,1.9",
+    "WordApiDesktop": "1.1,1.2,1.3,1.4",
+    "WordApiHiddenDocument": "1.5",
+    "CustomXmlParts": "1.1",
+    "diagnostics": {
+     "host": "Word",
+     "version": "16.0.20326.20318",
+     "platform": "PC"
+    }
+   }
+  },
+  {
+   "at": 7065,
+   "k": "open: first read of every control (tag, text)",
+   "v": {
+    "ms": 469,
+    "controls": 4006
+   }
+  },
+  {
+   "at": 7083,
+   "k": "open: read the part",
+   "v": {
+    "ms": 21,
+    "parts": 0
+   }
+  },
+  {
+   "at": 7556,
+   "k": "open: check every control against the part",
+   "v": {
+    "ms": 470,
+    "wrong": 0,
+    "examples": []
+   }
+  },
+  {
+   "at": 8493,
+   "k": "bodyooxml: fixtures",
+   "v": [
+    1,
+    1
+   ]
+  },
+  {
+   "at": 23269,
+   "k": "bodyooxml: before",
+   "v": {
+    "bookmarks": [
+     "keepMe:506"
+    ],
+    "paragraphs": 4416,
+    "footnotes": [
+     "A footnote about the survey."
+    ],
+    "ids": "F58AF71DAC9E",
+    "tags": "E996673432CE",
+    "trackRevisions": false,
+    "comments": [
+     "Comment by Author B:5:2026-11-18T13:10:00"
+    ],
+    "controls": 4006,
+    "fields": [
+     " PAGE  \\* MERGEFORMAT "
+    ],
+    "texts": "AD9EFC8B2CF2",
+    "revisions": [
+     "1:tracked words :False:2026-11-18T13:10:00",
+     "2:have :False:2026-11-18T13:10:00"
+    ]
+   }
+  },
+  {
+   "at": 28741,
+   "k": "bodyooxml: getOoxml of the body, every citation text changed, insertOoxml Replace (untracked, run 1)",
+   "v": {
+    "ms": 5472,
+    "readMs": 1146,
+    "bytes": 3401280,
+    "citationsChanged": 4000,
+    "insertMs": 4321
+   }
+  },
+  {
+   "at": 48823,
+   "k": "bodyooxml: after (untracked, run 1)",
+   "v": {
+    "same": {
+     "bookmarks": false,
+     "paragraphs": true,
+     "footnotes": true,
+     "ids": true,
+     "tags": true,
+     "trackRevisions": true,
+     "comments": true,
+     "controls": true,
+     "fields": true,
+     "texts": false,
+     "revisions": true
+    },
+    "after": {
+     "bookmarks": [
+      "keepMe:509"
+     ],
+     "paragraphs": 4416,
+     "footnotes": [
+      "A footnote about the survey."
+     ],
+     "ids": "F58AF71DAC9E",
+     "tags": "E996673432CE",
+     "trackRevisions": false,
+     "comments": [
+      "Comment by Author B:5:2026-11-18T13:10:00"
+     ],
+     "controls": 4006,
+     "fields": [
+      " PAGE  \\* MERGEFORMAT "
+     ],
+     "texts": "F4E422BCA8E9",
+     "revisions": [
+      "1:tracked words :False:2026-11-18T13:10:00",
+      "2:have :False:2026-11-18T13:10:00"
+     ]
+    }
+   }
+  },
+  {
+   "at": 49336,
+   "k": "bodyooxml: first citations now",
+   "v": [
+    "[o1.1]",
+    "[o1.2]",
+    "[o1.3]"
+   ]
+  },
+  {
+   "at": 55885,
+   "k": "bodyooxml: getOoxml of the body, every citation text changed, insertOoxml Replace (untracked, run 2)",
+   "v": {
+    "ms": 6242,
+    "readMs": 1167,
+    "bytes": 3399584,
+    "citationsChanged": 4000,
+    "insertMs": 5070
+   }
+  },
+  {
+   "at": 76093,
+   "k": "bodyooxml: after (untracked, run 2)",
+   "v": {
+    "same": {
+     "bookmarks": false,
+     "paragraphs": true,
+     "footnotes": true,
+     "ids": true,
+     "tags": true,
+     "trackRevisions": true,
+     "comments": true,
+     "controls": true,
+     "fields": true,
+     "texts": false,
+     "revisions": true
+    },
+    "after": {
+     "bookmarks": [
+      "keepMe:509"
+     ],
+     "paragraphs": 4416,
+     "footnotes": [
+      "A footnote about the survey."
+     ],
+     "ids": "F58AF71DAC9E",
+     "tags": "E996673432CE",
+     "trackRevisions": false,
+     "comments": [
+      "Comment by Author B:5:2026-11-18T13:10:00"
+     ],
+     "controls": 4006,
+     "fields": [
+      " PAGE  \\* MERGEFORMAT "
+     ],
+     "texts": "9CF7B70FE36D",
+     "revisions": [
+      "1:tracked words :False:2026-11-18T13:10:00",
+      "2:have :False:2026-11-18T13:10:00"
+     ]
+    }
+   }
+  },
+  {
+   "at": 76633,
+   "k": "bodyooxml: first citations now",
+   "v": [
+    "[o2.1]",
+    "[o2.2]",
+    "[o2.3]"
+   ]
+  },
+  {
+   "at": 83575,
+   "k": "bodyooxml: getOoxml of the body, every citation text changed, insertOoxml Replace (untracked, run 3)",
+   "v": {
+    "ms": 6945,
+    "readMs": 1188,
+    "bytes": 3399584,
+    "citationsChanged": 4000,
+    "insertMs": 5752
+   }
+  },
+  {
+   "at": 103694,
+   "k": "bodyooxml: after (untracked, run 3)",
+   "v": {
+    "same": {
+     "bookmarks": false,
+     "paragraphs": true,
+     "footnotes": true,
+     "ids": true,
+     "tags": true,
+     "trackRevisions": true,
+     "comments": true,
+     "controls": true,
+     "fields": true,
+     "texts": false,
+     "revisions": true
+    },
+    "after": {
+     "bookmarks": [
+      "keepMe:509"
+     ],
+     "paragraphs": 4416,
+     "footnotes": [
+      "A footnote about the survey."
+     ],
+     "ids": "F58AF71DAC9E",
+     "tags": "E996673432CE",
+     "trackRevisions": false,
+     "comments": [
+      "Comment by Author B:5:2026-11-18T13:10:00"
+     ],
+     "controls": 4006,
+     "fields": [
+      " PAGE  \\* MERGEFORMAT "
+     ],
+     "texts": "25C6175888DE",
+     "revisions": [
+      "1:tracked words :False:2026-11-18T13:10:00",
+      "2:have :False:2026-11-18T13:10:00"
+     ]
+    }
+   }
+  },
+  {
+   "at": 104224,
+   "k": "bodyooxml: first citations now",
+   "v": [
+    "[o3.1]",
+    "[o3.2]",
+    "[o3.3]"
+   ]
+  },
+  {
+   "at": 109694,
+   "k": "bodyooxml: Ctrl+Z",
+   "v": true
+  },
+  {
+   "at": 110224,
+   "k": "bodyooxml: first citations after Ctrl+Z",
+   "v": [
+    "[o2.1]",
+    "[o2.2]",
+    "[o2.3]"
+   ]
+  }
+ ],
+ "file": {
+  "bytes": 662259,
+  "documentXmlBytes": 3337253,
+  "storeParts": 0,
+  "controls": 4000,
+  "textDiffersFromStore": 0,
+  "differExamples": [],
+  "sample": [
+   [
+    "jpleolx33d0",
+    "[o2.1]",
+    null
+   ],
+   [
+    "nkch8fx3431jm",
+    "[o2.2001]",
+    null
+   ],
+   [
+    "mwku91x34r338",
+    "[o2.4000]",
+    null
+   ]
+  ],
+  "dataBindings": 0,
+  "revisions": {
+   "ins": 1,
+   "del": 1
+  },
+  "authors": [
+   "Author"
+  ],
+  "core": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:dcterms=\"http://purl.org/dc/terms/\" xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><cp:lastModifiedBy></cp:lastModifiedBy><cp:revision>1</cp:revision><dcterms:created xsi:type=\"dcterms:W3CDTF\">2026-11-18T12:11:00Z</dcterms:created><dcterms:modified xsi:type=\"dcterms:W3CDTF\">2026-11-18T12:11:00Z</dcterms:modified></cp:coreProperties>",
+  "appCompany": false
+ }
+}

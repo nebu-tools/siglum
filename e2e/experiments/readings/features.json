@@ -1,0 +1,884 @@
+{
+ "session": "features",
+ "steps": [
+  "features"
+ ],
+ "runs": 3,
+ "generated": {
+  "variant": "features",
+  "fileBytes": 8051
+ },
+ "word": {
+  "startSeconds": 1.1441999,
+  "version": "16.0",
+  "build": "16.0.20326",
+  "pid": 22192,
+  "openSeconds": 0.46517529999999996,
+  "stalls": [],
+  "paneSeconds": 14.2753327,
+  "peakWorkingSetMB": 277,
+  "privateMB": 218,
+  "saveSeconds": 0.11542369999999999
+ },
+ "code": 0,
+ "ok": true,
+ "seconds": 21.227,
+ "rows": [
+  {
+   "at": 4720,
+   "k": "requirement sets",
+   "v": {
+    "WordApi": "1.3,1.4,1.5,1.6,1.7,1.8,1.9",
+    "WordApiDesktop": "1.1,1.2,1.3,1.4",
+    "WordApiHiddenDocument": "1.5",
+    "CustomXmlParts": "1.1",
+    "diagnostics": {
+     "host": "Word",
+     "version": "16.0.20326.20318",
+     "platform": "PC"
+    }
+   }
+  },
+  {
+   "at": 5420,
+   "k": "features: as opened, every story",
+   "v": [
+    [
+     1,
+     "exp:cite:e1",
+     "[e1]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e2",
+     "[e2]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e3",
+     "[e3]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e11",
+     "[e11]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e4",
+     "[e4]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e5a",
+     "[e5]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e5b",
+     "[e5]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:r1",
+     "Author A et al. 2020",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e6",
+     "[e6]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e12",
+     "[e12]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e1c",
+     "[e1]",
+     true
+    ],
+    [
+     2,
+     "exp:cite:e7",
+     "[e7]",
+     true
+    ],
+    [
+     4,
+     "exp:cite:e10",
+     "[e10]",
+     true
+    ],
+    [
+     5,
+     "exp:cite:e9",
+     "[e9]",
+     true
+    ],
+    [
+     7,
+     "exp:cite:e8",
+     "[e8]",
+     true
+    ],
+    [
+     "comment",
+     "exp:cite:e10",
+     "[e10]",
+     true
+    ],
+    [
+     "shape",
+     "exp:cite:e9",
+     "[e9]",
+     true
+    ]
+   ]
+  },
+  {
+   "at": 5432,
+   "k": "features: as opened, Office.js document.contentControls",
+   "v": {
+    "documentContentControls": [
+     [
+      "exp:cite:r1",
+      "Author A et al. 2020"
+     ]
+    ],
+    "bodyGetContentControls": [
+     [
+      "exp:cite:e1",
+      "PlainText",
+      "[e1]"
+     ],
+     [
+      "exp:cite:e2",
+      "PlainText",
+      "[e2]"
+     ],
+     [
+      "exp:cite:e3",
+      "PlainText",
+      "[e3]"
+     ],
+     [
+      "exp:cite:e11",
+      "PlainText",
+      "[e11]"
+     ],
+     [
+      "exp:cite:e4",
+      "PlainText",
+      "[e4]"
+     ],
+     [
+      "exp:cite:e5a",
+      "PlainText",
+      "[e5]"
+     ],
+     [
+      "exp:cite:e5b",
+      "PlainText",
+      "[e5]"
+     ],
+     [
+      "exp:cite:r1",
+      "RichText",
+      "Author A et al. 2020"
+     ],
+     [
+      "exp:cite:e6",
+      "PlainText",
+      "[e6]"
+     ],
+     [
+      "exp:cite:e12",
+      "PlainText",
+      "[e12]"
+     ],
+     [
+      "exp:cite:e1c",
+      "PlainText",
+      "[e1]"
+     ]
+    ]
+   }
+  },
+  {
+   "at": 5460,
+   "k": "features: xmlMapping through Office.js",
+   "v": {
+    "ms": 24,
+    "rows": [
+     [
+      "exp:cite:e1",
+      true,
+      "/c:cites[1]/c:c[@id='e1']"
+     ],
+     [
+      "exp:cite:e2",
+      true,
+      "/c:cites[1]/c:c[@id='e2']"
+     ],
+     [
+      "exp:cite:e3",
+      true,
+      "/c:cites[1]/c:c[@id='e3']"
+     ],
+     [
+      "exp:cite:e11",
+      true,
+      "/c:cites[1]/c:c[@id='e11']"
+     ],
+     [
+      "exp:cite:e4",
+      true,
+      "/c:cites[1]/c:c[@id='e4']"
+     ],
+     [
+      "exp:cite:e5a",
+      true,
+      "/c:cites[1]/c:c[@id='e5']"
+     ],
+     [
+      "exp:cite:e5b",
+      true,
+      "/c:cites[1]/c:c[@id='e5']"
+     ],
+     [
+      "exp:cite:r1",
+      true,
+      "/c:cites[1]/c:c[@id='r1']"
+     ],
+     [
+      "exp:cite:e6",
+      true,
+      "/c:cites[1]/c:c[@id='e6']"
+     ],
+     [
+      "exp:cite:e12",
+      true,
+      "/c:cites[1]/c:c[@id='e12']"
+     ],
+     [
+      "exp:cite:e1c",
+      true,
+      "/c:cites[1]/c:c[@id='e1']"
+     ]
+    ]
+   }
+  },
+  {
+   "at": 5483,
+   "k": "features: setXml of every plain value",
+   "v": {
+    "ms": 27
+   }
+  },
+  {
+   "at": 5916,
+   "k": "features: after setXml, every story",
+   "v": [
+    [
+     1,
+     "exp:cite:e1",
+     "[new e1]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e2",
+     "[new e2]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e3",
+     "[new e3]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e11",
+     "[new e11]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e4",
+     "[new e4]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e5a",
+     "[new e5]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e5b",
+     "[new e5]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:r1",
+     "Author A et al. 2020",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e6",
+     "[new e6]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e12",
+     "[new e12]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e1c",
+     "[new e1]",
+     true
+    ],
+    [
+     2,
+     "exp:cite:e7",
+     "[new e7]",
+     true
+    ],
+    [
+     4,
+     "exp:cite:e10",
+     "[new e10]",
+     true
+    ],
+    [
+     5,
+     "exp:cite:e9",
+     "[new e9]",
+     true
+    ],
+    [
+     7,
+     "exp:cite:e8",
+     "[new e8]",
+     true
+    ],
+    [
+     "comment",
+     "exp:cite:e10",
+     "[new e10]",
+     true
+    ],
+    [
+     "shape",
+     "exp:cite:e9",
+     "[new e9]",
+     true
+    ]
+   ]
+  },
+  {
+   "at": 6303,
+   "k": "features: superscript control after the update (Font.Superscript, -1 = yes)",
+   "v": [
+    "[new e4]",
+    -1
+   ]
+  },
+  {
+   "at": 6317,
+   "k": "features: setXml of the rich control's package (italic et al.)",
+   "v": {
+    "ms": 16
+   }
+  },
+  {
+   "at": 6686,
+   "k": "features: rich control after the update (text, italic characters, mapped)",
+   "v": [
+    "[new] Author B et al. 2021",
+    "et al.",
+    true
+   ]
+  },
+  {
+   "at": 6848,
+   "k": "features: insertOoxml into the rich control, then its element",
+   "v": {
+    "ms": 161,
+    "elementLength": 6574,
+    "elementHasItalic": true,
+    "elementStart": "<?xml version=\"1.0\" standalone=\"yes\"?>\r\n<?mso-application progid=\"Word.Document\"?>\r\n<pkg:package xmlns:pkg=\"http://schem",
+    "elementText": "Author C et al."
+   }
+  },
+  {
+   "at": 7589,
+   "k": "features: typing into e1",
+   "v": {
+    "result": "typed",
+    "element": "typed e1",
+    "controls": [
+     [
+      "exp:cite:e1",
+      "typed e1"
+     ],
+     [
+      "exp:cite:e2",
+      "[new e2]"
+     ],
+     [
+      "exp:cite:e3",
+      "[new e3]"
+     ],
+     [
+      "exp:cite:e11",
+      "[new e11]"
+     ],
+     [
+      "exp:cite:e5a",
+      "[new e5]"
+     ],
+     [
+      "exp:cite:e5b",
+      "[new e5]"
+     ],
+     [
+      "exp:cite:e1c",
+      "typed e1"
+     ]
+    ]
+   }
+  },
+  {
+   "at": 8426,
+   "k": "features: typing into e2",
+   "v": {
+    "result": "error: The Insert statement is currently disabled.",
+    "element": "[new e2]",
+    "controls": [
+     [
+      "exp:cite:e1",
+      "typed e1"
+     ],
+     [
+      "exp:cite:e2",
+      "[new e2]"
+     ],
+     [
+      "exp:cite:e3",
+      "[new e3]"
+     ],
+     [
+      "exp:cite:e11",
+      "[new e11]"
+     ],
+     [
+      "exp:cite:e5a",
+      "[new e5]"
+     ],
+     [
+      "exp:cite:e5b",
+      "[new e5]"
+     ],
+     [
+      "exp:cite:e1c",
+      "typed e1"
+     ]
+    ]
+   }
+  },
+  {
+   "at": 9291,
+   "k": "features: typing into e3",
+   "v": {
+    "result": "typed",
+    "element": "typed e3",
+    "controls": [
+     [
+      "exp:cite:e1",
+      "typed e1"
+     ],
+     [
+      "exp:cite:e2",
+      "[new e2]"
+     ],
+     [
+      "exp:cite:e3",
+      "typed e3"
+     ],
+     [
+      "exp:cite:e11",
+      "[new e11]"
+     ],
+     [
+      "exp:cite:e5a",
+      "[new e5]"
+     ],
+     [
+      "exp:cite:e5b",
+      "[new e5]"
+     ],
+     [
+      "exp:cite:e1c",
+      "typed e1"
+     ]
+    ]
+   }
+  },
+  {
+   "at": 10008,
+   "k": "features: typing into e11",
+   "v": {
+    "result": "error: The Insert statement is currently disabled.",
+    "element": "[new e11]",
+    "controls": [
+     [
+      "exp:cite:e1",
+      "typed e1"
+     ],
+     [
+      "exp:cite:e2",
+      "[new e2]"
+     ],
+     [
+      "exp:cite:e3",
+      "typed e3"
+     ],
+     [
+      "exp:cite:e11",
+      "[new e11]"
+     ],
+     [
+      "exp:cite:e5a",
+      "[new e5]"
+     ],
+     [
+      "exp:cite:e5b",
+      "[new e5]"
+     ],
+     [
+      "exp:cite:e1c",
+      "typed e1"
+     ]
+    ]
+   }
+  },
+  {
+   "at": 10875,
+   "k": "features: typing into e5a",
+   "v": {
+    "result": "typed",
+    "element": "typed e5a",
+    "controls": [
+     [
+      "exp:cite:e1",
+      "typed e1"
+     ],
+     [
+      "exp:cite:e2",
+      "[new e2]"
+     ],
+     [
+      "exp:cite:e3",
+      "typed e3"
+     ],
+     [
+      "exp:cite:e11",
+      "[new e11]"
+     ],
+     [
+      "exp:cite:e5a",
+      "typed e5a"
+     ],
+     [
+      "exp:cite:e5b",
+      "typed e5a"
+     ],
+     [
+      "exp:cite:e1c",
+      "typed e1"
+     ]
+    ]
+   }
+  },
+  {
+   "at": 10902,
+   "k": "features: Office.js insertText into the content-locked e2",
+   "v": {
+    "ms": 27,
+    "error": "GeneralException (GeneralException) at ContentControl.insertText"
+   }
+  },
+  {
+   "at": 10923,
+   "k": "features: setXml with e2, e3, e11 changed (locked controls)",
+   "v": {
+    "ms": 20
+   }
+  },
+  {
+   "at": 11409,
+   "k": "features: locked and double after setXml",
+   "v": [
+    [
+     "exp:cite:e2",
+     "[part e2]"
+    ],
+    [
+     "exp:cite:e3",
+     "[part e3]"
+    ],
+    [
+     "exp:cite:e11",
+     "[part e11]"
+    ],
+    [
+     "exp:cite:e5a",
+     "[part e5]"
+    ],
+    [
+     "exp:cite:e5b",
+     "[part e5]"
+    ]
+   ]
+  },
+  {
+   "at": 11881,
+   "k": "features: copy e1 to the end of the same document",
+   "v": [
+    2,
+    "[new e1]",
+    true,
+    "/c:cites[1]/c:c[@id='e1']"
+   ]
+  },
+  {
+   "at": 12761,
+   "k": "features: copy e1 into a new document",
+   "v": [
+    1,
+    "[new e1]",
+    false,
+    "/c:cites[1]/c:c[@id='e1']",
+    3,
+    [
+     "http://schemas.openxmlformats.org/package/2006/metadata/core-properties",
+     "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties",
+     "http://schemas.microsoft.com/office/2006/coverPageProps"
+    ]
+   ]
+  },
+  {
+   "at": 13136,
+   "k": "features: move e4 (cut and paste: copy, then delete the original)",
+   "v": [
+    1,
+    1,
+    "[new e4]",
+    true
+   ]
+  },
+  {
+   "at": 13715,
+   "k": "features: move the paragraph with e6? no: the first paragraph (e1) down with track changes on",
+   "v": {
+    "e1": [
+     [
+      "[new e1]",
+      true
+     ],
+     [
+      "[new e1]",
+      true
+     ],
+     [
+      "[new e1]",
+      true
+     ]
+    ],
+    "revisions": 3
+   }
+  },
+  {
+   "at": 13728,
+   "k": "features: setXml after the copies and moves",
+   "v": {
+    "ms": 12
+   }
+  },
+  {
+   "at": 14208,
+   "k": "features: copies after setXml",
+   "v": [
+    [
+     1,
+     "exp:cite:e1",
+     "[new e1]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e1",
+     "[after e1]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e1",
+     "[after e1]",
+     true
+    ],
+    [
+     1,
+     "exp:cite:e4",
+     "[after e4]",
+     true
+    ]
+   ]
+  },
+  {
+   "at": 14279,
+   "k": "features: setXml with track changes on",
+   "v": {
+    "ms": 66
+   }
+  },
+  {
+   "at": 14691,
+   "k": "features: revisions",
+   "v": {
+    "count": 5,
+    "items": [
+     "14 | Plain: the survey counted 40 pairs [new e1].\r | (another name)",
+     "15 | Plain: the survey counted 40 pairs [after e1].\r | (another name)",
+     "2 | [new e6] | (another name)",
+     "1 | [tracked e6] | (another name)",
+     "1 |  tracked insertion | Author B"
+    ]
+   }
+  },
+  {
+   "at": 14695,
+   "k": "features: Office.js tracked changes after the bound update",
+   "v": {
+    "ms": 3,
+    "error": "GeneralException (GeneralException) at TrackedChange.type"
+   }
+  },
+  {
+   "at": 15300,
+   "k": "features: typing into e6 with track changes on",
+   "v": "typed"
+  },
+  {
+   "at": 16023,
+   "k": "features: revisions after the tracked typing",
+   "v": {
+    "count": 5,
+    "items": [
+     "14 | Plain: the survey counted 40 pairs [new e1].\r | (another name)",
+     "15 | Plain: the survey counted 40 pairs [after e1].\r | (another name)",
+     "2 | [new e6] | (another name)",
+     "1 | typed tracked e6 | (another name)",
+     "1 |  tracked insertion | Author B"
+    ]
+   }
+  },
+  {
+   "at": 16029,
+   "k": "features: element e6 after tracked typing",
+   "v": "typed tracked e6"
+  },
+  {
+   "at": 16877,
+   "k": "features: after RejectAll: e6 control and element",
+   "v": {
+    "control": [
+     "[new e6]"
+    ],
+    "element": "[new e6]"
+   }
+  },
+  {
+   "at": 17938,
+   "k": "features: Ctrl+Z 1 after a setXml",
+   "v": {
+    "undoReturned": false,
+    "e8": "[undo e8]",
+    "e9": "[undo e9]",
+    "controls": [
+     [
+      "exp:cite:e9",
+      "[undo e9]"
+     ],
+     [
+      "exp:cite:e8",
+      "[undo e8]"
+     ],
+     [
+      "exp:cite:e9",
+      "[undo e9]"
+     ]
+    ]
+   }
+  }
+ ],
+ "file": {
+  "bytes": 23390,
+  "documentXmlBytes": 32583,
+  "storeParts": 1,
+  "controls": 12,
+  "textDiffersFromStore": 1,
+  "differExamples": [
+   [
+    "r1",
+    "[new] Author B et al. 2021",
+    "&lt;?xml version=\"1.0\" standalone=\"yes\"?&gt;&lt;?mso-application progid=\"Word.Do"
+   ]
+  ],
+  "sample": [
+   [
+    "e1",
+    "[after e1]",
+    "[after e1]"
+   ],
+   [
+    "r1",
+    "[new] Author B et al. 2021",
+    "&lt;?xml version=\"1.0\" standalone=\"yes\"?&gt;&lt;?mso-application progid=\"Word.Do"
+   ],
+   [
+    "e4",
+    "[after e4]",
+    "[after e4]"
+   ]
+  ],
+  "dataBindings": 12,
+  "revisions": {
+   "ins": 0,
+   "del": 0
+  },
+  "authors": [],
+  "core": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:dcterms=\"http://purl.org/dc/terms/\" xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><cp:lastModifiedBy></cp:lastModifiedBy><cp:revision>1</cp:revision><dcterms:created xsi:type=\"dcterms:W3CDTF\">2026-11-18T07:37:00Z</dcterms:created><dcterms:modified xsi:type=\"dcterms:W3CDTF\">2026-11-18T07:37:00Z</dcterms:modified></cp:coreProperties>",
+  "appCompany": false
+ }
+}

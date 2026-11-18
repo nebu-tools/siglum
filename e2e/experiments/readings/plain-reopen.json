@@ -1,0 +1,159 @@
+{
+ "session": "plain-reopen",
+ "steps": [
+  "open",
+  "reopen"
+ ],
+ "runs": 3,
+ "generated": {
+  "from": "plain",
+  "edit": "store",
+  "expectedFromStore": [
+   "k5qfwebkoe0",
+   "7h5un5bkp41jm",
+   "ihz2slbkpp338"
+  ],
+  "fileBytes": 692099
+ },
+ "word": {
+  "startSeconds": 2.1201423999999998,
+  "version": "16.0",
+  "build": "16.0.20326",
+  "pid": 42384,
+  "openSeconds": 24.7431689,
+  "stalls": [],
+  "paneSeconds": 3.5586227,
+  "peakWorkingSetMB": 307,
+  "privateMB": 239,
+  "saveSeconds": 16.879169
+ },
+ "code": 0,
+ "ok": true,
+ "seconds": 51.65,
+ "rows": [
+  {
+   "at": 29262,
+   "k": "requirement sets",
+   "v": {
+    "WordApi": "1.3,1.4,1.5,1.6,1.7,1.8,1.9",
+    "WordApiDesktop": "1.1,1.2,1.3,1.4",
+    "WordApiHiddenDocument": "1.5",
+    "CustomXmlParts": "1.1",
+    "diagnostics": {
+     "host": "Word",
+     "version": "16.0.20326.20318",
+     "platform": "PC"
+    }
+   }
+  },
+  {
+   "at": 29848,
+   "k": "open: first read of every control (tag, text)",
+   "v": {
+    "ms": 582,
+    "controls": 4006
+   }
+  },
+  {
+   "at": 29862,
+   "k": "open: read the part",
+   "v": {
+    "ms": 17,
+    "parts": 1,
+    "id": "{5E1A9C3B-0000-4000-8000-0000000000B1}",
+    "bytes": 153640
+   }
+  },
+  {
+   "at": 30318,
+   "k": "open: check every control against the part",
+   "v": {
+    "ms": 452,
+    "wrong": 3,
+    "examples": [
+     [
+      "exp:cite:k5qfwebkoe0",
+      "[edited k5qfwebkoe0]",
+      "[tz.0]"
+     ],
+     [
+      "exp:cite:7h5un5bkp41jm",
+      "[edited 7h5un5bkp41jm]",
+      "[15.2000]"
+     ],
+     [
+      "exp:cite:ihz2slbkpp338",
+      "[edited ihz2slbkpp338]",
+      "[15.3999]"
+     ]
+    ]
+   }
+  },
+  {
+   "at": 30834,
+   "k": "reopen: the three edited citations",
+   "v": {
+    "ms": 515,
+    "rows": [
+     {
+      "id": "k5qfwebkoe0",
+      "control": "[edited k5qfwebkoe0]",
+      "part": "[edited k5qfwebkoe0]"
+     },
+     {
+      "id": "7h5un5bkp41jm",
+      "control": "[edited 7h5un5bkp41jm]",
+      "part": "[edited 7h5un5bkp41jm]"
+     },
+     {
+      "id": "ihz2slbkpp338",
+      "control": "[edited ihz2slbkpp338]",
+      "part": "[edited ihz2slbkpp338]"
+     }
+    ]
+   }
+  },
+  {
+   "at": 31329,
+   "k": "reopen: controls that differ from the part",
+   "v": {
+    "ms": 495,
+    "differ": 0,
+    "of": 4000
+   }
+  }
+ ],
+ "file": {
+  "bytes": 726534,
+  "documentXmlBytes": 4123759,
+  "storeParts": 1,
+  "controls": 4000,
+  "textDiffersFromStore": 0,
+  "differExamples": [],
+  "sample": [
+   [
+    "k5qfwebkoe0",
+    "[edited k5qfwebkoe0]",
+    "[edited k5qfwebkoe0]"
+   ],
+   [
+    "7h5un5bkp41jm",
+    "[edited 7h5un5bkp41jm]",
+    "[edited 7h5un5bkp41jm]"
+   ],
+   [
+    "ihz2slbkpp338",
+    "[edited ihz2slbkpp338]",
+    "[edited ihz2slbkpp338]"
+   ]
+  ],
+  "dataBindings": 4000,
+  "revisions": {
+   "ins": 0,
+   "del": 0
+  },
+  "authors": [],
+  "core": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:dcterms=\"http://purl.org/dc/terms/\" xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><cp:lastModifiedBy></cp:lastModifiedBy><cp:revision>1</cp:revision><dcterms:created xsi:type=\"dcterms:W3CDTF\">2026-11-18T10:38:00Z</dcterms:created><dcterms:modified xsi:type=\"dcterms:W3CDTF\">2026-11-18T10:38:00Z</dcterms:modified></cp:coreProperties>",
+  "appCompany": false
+ }
+}

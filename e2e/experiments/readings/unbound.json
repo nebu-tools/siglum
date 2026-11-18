@@ -1,0 +1,469 @@
+{
+ "session": "unbound",
+ "steps": [
+  "open",
+  "paths"
+ ],
+ "runs": 3,
+ "generated": {
+  "pages": 500,
+  "paragraphs": 2500,
+  "citations": 4000,
+  "bibs": 6,
+  "refs": 2000,
+  "cited": 841,
+  "storeBytes": 0,
+  "documentBytes": 3106925,
+  "nodeRenderMs": 1809,
+  "stale": false,
+  "fresh": [
+   "haddad1998",
+   "fischer2001",
+   "rossi2023",
+   "smith2022",
+   "mueller2007c",
+   "okafor2020c",
+   "silva2017",
+   "mueller2024a"
+  ],
+  "variant": "unbound",
+  "xpath": "id",
+  "fileBytes": 565463
+ },
+ "word": {
+  "startSeconds": 2.1667151,
+  "version": "16.0",
+  "build": "16.0.20326",
+  "pid": 61700,
+  "openSeconds": 2.4999936,
+  "stalls": [
+   [
+    924.7,
+    1325
+   ],
+   [
+    926.9,
+    1383
+   ],
+   [
+    930.1,
+    1331
+   ],
+   [
+    932.3,
+    59996
+   ]
+  ],
+  "paneSeconds": 994.6730233999999,
+  "peakWorkingSetMB": 505,
+  "privateMB": 425,
+  "saveSeconds": 1.060629
+ },
+ "code": 0,
+ "ok": true,
+ "seconds": 1005.369,
+ "rows": [
+  {
+   "at": 8075,
+   "k": "requirement sets",
+   "v": {
+    "WordApi": "1.3,1.4,1.5,1.6,1.7,1.8,1.9",
+    "WordApiDesktop": "1.1,1.2,1.3,1.4",
+    "WordApiHiddenDocument": "1.5",
+    "CustomXmlParts": "1.1",
+    "diagnostics": {
+     "host": "Word",
+     "version": "16.0.20326.20318",
+     "platform": "PC"
+    }
+   }
+  },
+  {
+   "at": 8646,
+   "k": "open: first read of every control (tag, text)",
+   "v": {
+    "ms": 567,
+    "controls": 4006
+   }
+  },
+  {
+   "at": 8709,
+   "k": "open: read the part",
+   "v": {
+    "ms": 66,
+    "parts": 0
+   }
+  },
+  {
+   "at": 9216,
+   "k": "open: check every control against the part",
+   "v": {
+    "ms": 503,
+    "wrong": 0,
+    "examples": []
+   }
+  },
+  {
+   "at": 9790,
+   "k": "direct run 1: insertText into one",
+   "v": {
+    "ms": 573,
+    "n": 1,
+    "syncMs": 33,
+    "perMs": 32.5
+   }
+  },
+  {
+   "at": 10134,
+   "k": "direct run 1: Word's object model ping after it",
+   "v": 1
+  },
+  {
+   "at": 16760,
+   "k": "direct run 1: insertText into tenth",
+   "v": {
+    "ms": 6620,
+    "n": 400,
+    "syncMs": 6086,
+    "perMs": 15.2
+   }
+  },
+  {
+   "at": 16947,
+   "k": "direct run 1: Word's object model ping after it",
+   "v": 1
+  },
+  {
+   "at": 123604,
+   "k": "direct run 1: insertText into all",
+   "v": {
+    "ms": 106340,
+    "n": 4000,
+    "syncMs": 105890,
+    "perMs": 26.5
+   }
+  },
+  {
+   "at": 123899,
+   "k": "direct run 1: Word's object model ping after it",
+   "v": 1
+  },
+  {
+   "at": 124414,
+   "k": "direct run 2: insertText into one",
+   "v": {
+    "ms": 508,
+    "n": 1,
+    "syncMs": 34,
+    "perMs": 34
+   }
+  },
+  {
+   "at": 124655,
+   "k": "direct run 2: Word's object model ping after it",
+   "v": 1
+  },
+  {
+   "at": 143588,
+   "k": "direct run 2: insertText into tenth",
+   "v": {
+    "ms": 18926,
+    "n": 400,
+    "syncMs": 18427,
+    "perMs": 46.1
+   }
+  },
+  {
+   "at": 143882,
+   "k": "direct run 2: Word's object model ping after it",
+   "v": 1
+  },
+  {
+   "at": 383682,
+   "k": "direct run 2: insertText into all",
+   "v": {
+    "ms": 239484,
+    "n": 4000,
+    "syncMs": 239015,
+    "perMs": 59.8
+   }
+  },
+  {
+   "at": 383816,
+   "k": "direct run 2: Word's object model ping after it",
+   "v": 1
+  },
+  {
+   "at": 384327,
+   "k": "direct run 3: insertText into one",
+   "v": {
+    "ms": 506,
+    "n": 1,
+    "syncMs": 56,
+    "perMs": 56.4
+   }
+  },
+  {
+   "at": 384569,
+   "k": "direct run 3: Word's object model ping after it",
+   "v": 1
+  },
+  {
+   "at": 414452,
+   "k": "direct run 3: insertText into tenth",
+   "v": {
+    "ms": 29876,
+    "n": 400,
+    "syncMs": 29398,
+    "perMs": 73.5
+   }
+  },
+  {
+   "at": 414800,
+   "k": "direct run 3: Word's object model ping after it",
+   "v": 1
+  },
+  {
+   "at": 756945,
+   "k": "direct run 3: insertText into all",
+   "v": {
+    "ms": 341834,
+    "n": 4000,
+    "syncMs": 341362,
+    "perMs": 85.3
+   }
+  },
+  {
+   "at": 757291,
+   "k": "direct run 3: Word's object model ping after it",
+   "v": 1
+  },
+  {
+   "at": 767541,
+   "k": "paths run 1: control.insertText Replace",
+   "v": {
+    "ms": 10244,
+    "n": 100,
+    "perMs": 98
+   }
+  },
+  {
+   "at": 778334,
+   "k": "paths run 1: content range insertText Replace",
+   "v": {
+    "ms": 10487,
+    "n": 100,
+    "perMs": 100.3
+   }
+  },
+  {
+   "at": 800662,
+   "k": "paths run 1: control.insertOoxml Replace",
+   "v": {
+    "ms": 22633,
+    "n": 100,
+    "perMs": 221.9
+   }
+  },
+  {
+   "at": 811402,
+   "k": "paths run 1: first character range insertText (text shorter or same length)",
+   "v": {
+    "ms": 10427,
+    "n": 100,
+    "perMs": 99.3
+   }
+  },
+  {
+   "at": 821573,
+   "k": "paths run 2: control.insertText Replace",
+   "v": {
+    "ms": 10485,
+    "n": 100,
+    "perMs": 99.8
+   }
+  },
+  {
+   "at": 832309,
+   "k": "paths run 2: content range insertText Replace",
+   "v": {
+    "ms": 10420,
+    "n": 100,
+    "perMs": 99.7
+   }
+  },
+  {
+   "at": 854683,
+   "k": "paths run 2: control.insertOoxml Replace",
+   "v": {
+    "ms": 22689,
+    "n": 100,
+    "perMs": 222.3
+   }
+  },
+  {
+   "at": 865395,
+   "k": "paths run 2: first character range insertText (text shorter or same length)",
+   "v": {
+    "ms": 10407,
+    "n": 100,
+    "perMs": 99.7
+   }
+  },
+  {
+   "at": 875690,
+   "k": "paths run 3: control.insertText Replace",
+   "v": {
+    "ms": 10599,
+    "n": 100,
+    "perMs": 101.6
+   }
+  },
+  {
+   "at": 886589,
+   "k": "paths run 3: content range insertText Replace",
+   "v": {
+    "ms": 10591,
+    "n": 100,
+    "perMs": 101.5
+   }
+  },
+  {
+   "at": 908934,
+   "k": "paths run 3: control.insertOoxml Replace",
+   "v": {
+    "ms": 22652,
+    "n": 100,
+    "perMs": 221.5
+   }
+  },
+  {
+   "at": 920365,
+   "k": "paths run 3: first character range insertText (text shorter or same length)",
+   "v": {
+    "ms": 11120,
+    "n": 100,
+    "perMs": 106.7
+   }
+  },
+  {
+   "at": 929700,
+   "k": "paths: Word's object model, 100 Range.Text",
+   "v": {
+    "ms": 9650,
+    "value": 91.94
+   }
+  },
+  {
+   "at": 930940,
+   "k": "paths: before the range insert",
+   "v": {
+    "bookmarks": 1,
+    "revisions": 1,
+    "controls": 4006,
+    "comments": 1
+   }
+  },
+  {
+   "at": 934726,
+   "k": "paths: one insertOoxml over paragraphs 20 to 400 (untracked)",
+   "v": {
+    "ms": 3780,
+    "controlsInRange": 609,
+    "bytes": 457916,
+    "insertMs": 1626,
+    "hasComment": true,
+    "hasIns": true,
+    "hasBookmark": true
+   }
+  },
+  {
+   "at": 935177,
+   "k": "paths: after the range insert (untracked)",
+   "v": {
+    "bookmarks": 1,
+    "revisions": 1,
+    "controls": 4006,
+    "comments": 1
+   }
+  },
+  {
+   "at": 936352,
+   "k": "paths: after undoing it",
+   "v": {
+    "bookmarks": 1,
+    "revisions": 1,
+    "controls": 4006,
+    "comments": 1
+   }
+  },
+  {
+   "at": 999054,
+   "k": "paths: one insertOoxml over paragraphs 20 to 400 (track changes on)",
+   "v": {
+    "ms": 62392,
+    "controlsInRange": 609,
+    "bytes": 457916,
+    "insertMs": 60258,
+    "hasComment": true,
+    "hasIns": true,
+    "hasBookmark": true
+   }
+  },
+  {
+   "at": 999508,
+   "k": "paths: after the range insert (track changes on)",
+   "v": {
+    "bookmarks": 1,
+    "revisions": 2,
+    "controls": 4615,
+    "comments": 2
+   }
+  },
+  {
+   "at": 1000839,
+   "k": "paths: after undoing it",
+   "v": {
+    "bookmarks": 1,
+    "revisions": 1,
+    "controls": 4006,
+    "comments": 1
+   }
+  }
+ ],
+ "file": {
+  "bytes": 662131,
+  "documentXmlBytes": 3359365,
+  "storeParts": 0,
+  "controls": 4000,
+  "textDiffersFromStore": 0,
+  "differExamples": [],
+  "sample": [
+   [
+    "5be5jxldew0",
+    "[d3.0]",
+    null
+   ],
+   [
+    "qoo6adldfn1jm",
+    "[d]",
+    null
+   ],
+   [
+    "q9hefdldg9338",
+    "[d3.3999]",
+    null
+   ]
+  ],
+  "dataBindings": 0,
+  "revisions": {
+   "ins": 1,
+   "del": 0
+  },
+  "authors": [
+   "Author"
+  ],
+  "core": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<cp:coreProperties xmlns:cp=\"http://schemas.openxmlformats.org/package/2006/metadata/core-properties\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:dcterms=\"http://purl.org/dc/terms/\" xmlns:dcmitype=\"http://purl.org/dc/dcmitype/\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><cp:lastModifiedBy></cp:lastModifiedBy><cp:revision>1</cp:revision><dcterms:created xsi:type=\"dcterms:W3CDTF\">2026-11-18T11:49:00Z</dcterms:created><dcterms:modified xsi:type=\"dcterms:W3CDTF\">2026-11-18T11:49:00Z</dcterms:modified></cp:coreProperties>",
+  "appCompany": false
+ }
+}

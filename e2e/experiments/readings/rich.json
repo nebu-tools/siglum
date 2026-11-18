@@ -1,0 +1,43 @@
+{
+ "session": "rich",
+ "steps": [
+  "open",
+  "timing"
+ ],
+ "runs": 3,
+ "generated": {
+  "pages": 500,
+  "paragraphs": 2500,
+  "citations": 4000,
+  "bibs": 6,
+  "refs": 2000,
+  "cited": 841,
+  "storeBytes": 4915923,
+  "documentBytes": 3740007,
+  "nodeRenderMs": 1973,
+  "stale": false,
+  "fresh": [
+   "haddad1998",
+   "fischer2001",
+   "rossi2023",
+   "smith2022",
+   "mueller2007c",
+   "okafor2020c",
+   "silva2017",
+   "mueller2024a"
+  ],
+  "variant": "rich",
+  "xpath": "id",
+  "fileBytes": 653565
+ },
+ "word": {
+  "startSeconds": 2.1695476,
+  "version": "16.0",
+  "build": "16.0.20326",
+  "pid": 74308
+ },
+ "code": 1,
+ "seconds": 37.658,
+ "rows": [],
+ "file": null
+}
