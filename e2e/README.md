@@ -119,6 +119,6 @@ Word 16.0.20326 (Microsoft 365 Apps, Current Channel, x64), Windows 11, WebView2
 | pane JS heap, last | 32 MB | 27 MB |
 | citeproc in Node, whole document | 0.1 s | 1.8 s |
 
-On main as it was, the suite failed one check: a citation moved with track changes on kept its number at the place it came from (`baseline/suite.txt`; the `main-reopen` failure there was a wrong count in the check). This branch fixes it.
+On main as it was, the suite failed one check: a citation moved with track changes on kept its number at the place it came from (`baseline/suite.txt`; the `main-reopen` failure there was a wrong count in the check). This branch fixes it. A control's `text` follows how Word shows tracked changes ("All Markup" keeps deleted text in it, "Simple Markup" does not), and `getReviewedText` gives a moved text both ways, so with tracked changes in the document Siglum reads the texts from the body's OOXML. The suite checks a tracked deletion and a tracked move under both views.
 
 Where the time goes: the sync that reads every citation with `getReviewedText("Current")` and `("Original")` holds most of every refresh (17 s of 18 s on medium), and the sync that writes holds the rest (47 s for 1,003 citations). Large documents were measured on the earlier rig at 4,000 citations: opening the pane 357 s, a refresh with nothing to change 303 s, a full rewrite 929 s.

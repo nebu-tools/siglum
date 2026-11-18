@@ -76,6 +76,15 @@ async function citedKeys() {
   return (await controls()).filter((x) => x.kind === "cite").map((x) => (store.citations[x.tag.slice(CITE_PREFIX.length)] ?? []).map((i) => i.id + (i.locator ? `@${i.locator}` : "") + (i.suffix ? `+${i.suffix}` : "")).join(" "));
 }
 
+/**
+ * Sets how Word shows tracked changes in this document's window: "all" for
+ * All Markup, "simple" for Simple Markup. Returns the mode it had.
+ */
+const MARKUP = { none: 0, simple: 1, all: 2 };
+async function markup(mode) {
+  return command(`$v = $doc.ActiveWindow.View.RevisionsFilter; $was = $v.Markup; $v.Markup = ${MARKUP[mode] ?? mode}; $was`);
+}
+
 /** Clicks Refresh twice: the second one must write nothing. */
 async function settled(name) {
   await refresh();
@@ -211,11 +220,17 @@ async function main() {
   check("with track changes on a pick inside a citation is a citation of its own", joined.length === 8 && joined[1] === "[2]" && joined[2] === "[3]", joined);
   check("that citation is only added", (await trackedChanges()).every(([t]) => t === "Added"), await trackedChanges());
 
-  // A tracked deletion of an older citation waits for review, without a number.
+  // A tracked deletion of an older citation waits for review, without a
+  // number, however Word shows tracked changes.
+  const shown = await markup("all");
   await word(async (c) => { (await nthCitation(c, 1)).getRange("Content").delete(); await c.sync(); });
   await refresh();
   const left = await citeTexts();
   check("a tracked deletion waits for review", /1 deleted, waiting for review/.test($("status").textContent) && left.length === 8 && left[0] === "[1]" && left[2] === "[2]" && left[3] === "[1,3]", { status: $("status").textContent, left });
+  await markup("simple");
+  const again = await refresh();
+  check("with Simple Markup shown, the same deletion still waits and nothing is written", again.pending === 1 && !again.citations.length && !again.bibs.length && !again.removes.length, { pending: again.pending, c: again.citations.length, b: again.bibs.length });
+  await markup(shown);
   await setTracking("Off");
 
   check("doi lookup", /^Added: \S+/.test(await lookup("10.1038/171737a0")), $("status").textContent);
@@ -647,13 +662,21 @@ async function sections() {
   await cursorAfter("References 2");
   await insertBibliography();
   await setTracking("TrackAll");
+  const shown = await markup("all");
   const moved = await comRelocate("Two");
   w = await watcher("Four");
   if (!w) await refresh();
   const types = await revisions();
+  // A control's text follows the markup shown; with Simple Markup the moved-away copy reads empty.
+  await markup("simple");
   const cites = await citeTexts();
+  await markup("all");
   check("a tracked move of a paragraph: numbers follow the new order", same(cites.filter(Boolean), ["[1]", "[2]", "[3]", "[1]"]) && same((await firstWords())[0], ["Alpha", "Gamma", "Beta"]),
     { moved, types, cites, bibs: await bibTexts(), status: $("status").textContent });
+  await markup("simple");
+  const again = await refresh();
+  check("with Simple Markup shown, the move needs no writes", again && !again.citations.length && !again.bibs.length, again && { c: again.citations, b: again.bibs.length });
+  await markup(shown);
   await setTracking("Off");
   await refresh();
   check("the move stays tracked for review", types.length > 0, types);

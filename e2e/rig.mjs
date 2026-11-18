@@ -178,7 +178,13 @@ export async function inWord({ docx, out, page = "e2e.html", onMessage = () => {
     };
     const args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", `${winDir}\\word.ps1`, "-Dir", winDir, "-AddinId", id, "-Timeout", String(timeout)];
     if (pages) args.push("-Pages");
-    const code = await new Promise((resolve) => spawn(PS, args, { stdio: "inherit" }).on("exit", resolve));
+    const alive = path.join(dir, "alive");
+    fs.writeFileSync(alive, "");
+    const beat = setInterval(() => { try { const t = new Date(); fs.utimesSync(alive, t, t); } catch { /* the session is over */ } }, 5000);
+    // Detached, so that a stopped harness does not take word.ps1 with it: it
+    // then notices the missing heartbeat and closes its Word.
+    const code = await new Promise((resolve) => spawn(PS, args, { stdio: "inherit", detached: true }).on("exit", resolve));
+    clearInterval(beat);
     exited = true;
     route = () => null;
     const saved = fs.existsSync(path.join(dir, "out.docx"));

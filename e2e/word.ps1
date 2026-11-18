@@ -3,7 +3,8 @@
 #
 # Commands are files named cmd-<n>.ps1. Each is a script that may use $word,
 # $doc and $Dir; its output goes to ack-<n>.json. A file named "done" ends the
-# session with a save, "abort" ends it without one.
+# session with a save, "abort" ends it without one. The harness touches a file
+# named "alive"; when it is a minute old, the session ends without a save.
 #
 # Writes info.json: Word's version and build, the instance's process id, how
 # long opening and saving took, the peak memory, the times Word's UI was
@@ -67,6 +68,8 @@ try {
   while ($sw.Elapsed.TotalSeconds -lt $Timeout) {
     if (Test-Path "$Dir\done") { $end = 'done'; break }
     if (Test-Path "$Dir\abort") { $end = 'abort'; break }
+    # The harness touches "alive" every few seconds; without it, nobody will end the session.
+    if ((Test-Path "$Dir\alive") -and ((Get-Date) - (Get-Item "$Dir\alive").LastWriteTime).TotalSeconds -gt 60) { $end = 'orphaned'; break }
     foreach ($cmd in @(Get-ChildItem -Path $Dir -Filter 'cmd-*.ps1' | Sort-Object Name)) {
       $n = $cmd.BaseName.Substring(4)
       $ack = [ordered]@{}
@@ -84,6 +87,7 @@ try {
   $info.paneSeconds = $sw.Elapsed.TotalSeconds
   Sample
   if (-not $end) { Write-Error "Timeout: the add-in did not report back." }
+  if ($end -eq 'orphaned') { Write-Error "The harness stopped; closing without saving." }
   if ($end -eq 'done') {
     if ($Pages) { $sw.Restart(); $info.pages = $doc.ComputeStatistics(2); $info.pagesSeconds = $sw.Elapsed.TotalSeconds }
     $sw.Restart()
@@ -110,5 +114,7 @@ try {
   # Word remembers where a reader was in a closed document; forget this one.
   Get-ChildItem 'HKCU:\Software\Microsoft\Office\16.0\Word\Reading Locations' -ErrorAction SilentlyContinue |
     Where-Object { "$($_.GetValue('File Path'))".StartsWith($Dir) } | Remove-Item -ErrorAction SilentlyContinue
+  # Nobody is left to clean up after an orphaned session, so it does it itself.
+  if ($end -eq 'orphaned') { Set-Location $env:TEMP; Remove-Item -Recurse -Force $Dir -ErrorAction SilentlyContinue }
   if ($madeKey -and -not (Get-ItemProperty $key).PSObject.Properties.Where({ $_.Name -notlike 'PS*' })) { Remove-Item $key -ErrorAction SilentlyContinue }
 }

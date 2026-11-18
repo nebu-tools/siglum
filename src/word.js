@@ -9,6 +9,7 @@ import {
   emptyStore, storeToXml, storeFromXml, newId, citeTitle, findMarkers, mayTouch, plan,
 } from "./model.js";
 import { documentText, UserError } from "./messages.js";
+import { controlTexts } from "./ooxml.js";
 
 // Hanging indent of bibliography entries, in points (1 cm).
 const HANG = 28.35;
@@ -48,30 +49,54 @@ async function openStore(context, session) {
 }
 
 /**
- * Citations and bibliographies in document order, with their texts. A
- * control's `text` is what it reads with tracked changes accepted, and Word
- * leaves text that was deleted or moved away out of it. Only a citation that
- * reads empty needs its text with the changes rejected, to tell a deletion
- * that waits for review from a control emptied by hand. (getReviewedText
- * cannot tell a move: it gives the moved text both ways.)
+ * Citations and bibliographies in document order, with their texts
+ * `current` and `original`: with tracked changes accepted and rejected.
+ *
+ * Without tracked changes a control's `text` is both, and that is all there
+ * is to read. With tracked changes, `text` follows how Word shows them ("All
+ * Markup" keeps deleted text in it, "Simple Markup" leaves it out), and
+ * getReviewedText costs about 90 ms per control in a large document and
+ * gives a moved text both ways. So then the texts come from the body's OOXML,
+ * which says what is inserted, deleted and moved, in one read.
  */
 export async function readControls(context) {
   const all = citationControls(context);
   all.load("items/tag,items/title,items/id,items/text,items/placeholderText");
   await context.sync();
+  let tracked = true;
+  try {
+    const changes = context.document.body.getTrackedChanges();
+    changes.load("items");
+    await context.sync();
+    tracked = changes.items.length > 0;
+  } catch {
+    // Word cannot list a document's tracked changes when one of them is a move.
+  }
   const ccs = all.items.filter(isOurs);
-  const orig = ccs.map((cc) => (isCite(cc) && !cc.text ? cc.getReviewedText("Original") : null));
-  if (orig.some(Boolean)) await context.sync();
+  let texts = ccs.map((cc) => ({ current: cc.text, original: cc.text }));
+  if (tracked) {
+    const ooxml = context.document.body.getOoxml();
+    await context.sync();
+    const ours = controlTexts(ooxml.value).filter((c) => isOurs(c));
+    if (ours.length === ccs.length && ours.every((c, i) => c.tag === ccs[i].tag)) texts = ours;
+    else texts = await reviewedTexts(context, ccs);
+  }
+  const controls = ccs.map((cc, i) => (isCite(cc)
+    ? { kind: "cite", tag: cc.tag, title: cc.title, current: texts[i].current, original: texts[i].original }
+    : { kind: "bib", current: texts[i].current }));
+  return { ccs, controls };
+}
+
+/** The texts from getReviewedText, for when the OOXML does not match the controls Word lists. */
+async function reviewedTexts(context, ccs) {
+  const r = ccs.map((cc) => [cc.getReviewedText("Current"), cc.getReviewedText("Original")]);
+  await context.sync();
   // Word wraps a control's reviewed text in "<…>". An emptied control shows its placeholder.
-  const original = (cc, r) => {
-    if (!r) return cc.text;
-    const v = r.value.startsWith("<") && r.value.endsWith(">") ? r.value.slice(1, -1) : r.value;
+  const text = (cc, x) => {
+    const v = x.value.startsWith("<") && x.value.endsWith(">") ? x.value.slice(1, -1) : x.value;
     return v === cc.placeholderText ? "" : v;
   };
-  const controls = ccs.map((cc, i) => (isCite(cc)
-    ? { kind: "cite", tag: cc.tag, title: cc.title, current: cc.text, original: original(cc, orig[i]) }
-    : { kind: "bib", current: cc.text }));
-  return { ccs, controls };
+  return ccs.map((cc, i) => ({ current: text(cc, r[i][0]), original: text(cc, r[i][1]) }));
 }
 
 function setFont(range, run) {
