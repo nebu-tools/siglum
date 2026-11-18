@@ -159,23 +159,44 @@ const hasProblems = (r) => Boolean(r.unknown?.length || r.unknownMarkers?.length
 
 // ---- document operations ----------------------------------------------------------
 
-/** Runs document operations one after another and reports their errors. */
+/**
+ * Runs document operations one after another and reports their errors. An
+ * operation may leave citations to write (`work`, when many numbers change);
+ * they are written in batches after it, through the same queue, while the
+ * pane stays usable. A new operation drops what is left, because it plans
+ * again from what the document holds, so two never interleave.
+ */
 let queue = Promise.resolve();
-function op(fn) {
-  const p = queue.then(() => run(fn));
+let waiting = 0;
+let work = null;
+const enqueue = (fn) => {
+  const p = queue.then(fn);
   queue = p.catch(() => {});
+  return p;
+};
+function op(fn) {
+  waiting++;
+  work = null;
+  const p = enqueue(() => run(fn)).finally(() => { waiting--; });
+  p.then((r) => { if (r?.work) drain(r, r.work); });
   return p;
 }
 
+function busy(on) {
+  state.busy = on;
+  if (on) document.body.setAttribute("aria-busy", "true");
+  else document.body.removeAttribute("aria-busy");
+}
+
 async function run(fn) {
-  state.busy = true;
-  document.body.setAttribute("aria-busy", "true");
+  busy(true);
   try {
     const r = await Word.run((context) => fn(context));
     if (r?.store) setStore(r.store);
-    if (r?.cited != null) status(() => summary(r), hasProblems(r));
-    state.sig = await Word.run((context) => doc.signature(context));
+    if (r?.work) work = r.work;
+    if (r?.cited != null) status(() => (r.work ? progress(r.work) : summary(r)), hasProblems(r));
     document.dispatchEvent(new CustomEvent("siglum:done", { detail: r }));
+    if (!r?.work) await settle(r);
     return r;
   } catch (e) {
     status(() => errorText(e), true);
@@ -183,9 +204,50 @@ async function run(fn) {
     document.dispatchEvent(new CustomEvent("siglum:done", { detail: { error: errorText(e) } }));
     return null;
   } finally {
-    state.busy = false;
-    document.body.removeAttribute("aria-busy");
+    if (!work) busy(false);
   }
+}
+
+const progress = (w) => t("progress.writing", { done: w.done, total: w.total });
+
+/** Writes the citations an operation left, a batch at a time, unless a new operation comes. */
+async function drain(r, w) {
+  work = w;
+  busy(true);
+  try {
+    // Batches of about half a second of Word's time: Word does not answer
+    // the keyboard while it works through one.
+    let size = doc.CHUNK;
+    while (work === w && w.citations.length && !waiting) {
+      const t0 = performance.now();
+      const n = Math.min(size, w.citations.length);
+      await enqueue(() => Word.run((context) => doc.writeChunk(context, w, n)));
+      size = Math.max(10, Math.min(200, Math.round((500 * n) / Math.max(1, performance.now() - t0))));
+      if (work === w) status(() => progress(w));
+    }
+    if (work !== w || waiting) return;
+    work = null;
+    status(() => summary(r), hasProblems(r));
+    await enqueue(() => settle(r));
+  } catch (e) {
+    work = null;
+    status(() => errorText(e), true);
+    console.error(e);
+  } finally {
+    if (!work && !waiting) busy(false);
+  }
+}
+
+/**
+ * Notes the order of the controls for the watcher and says that the document
+ * is current. If the order changed since the operation read it, as when
+ * someone pasted a citation during a long renumbering, it refreshes again.
+ */
+async function settle(r) {
+  const sig = await Word.run((context) => doc.signature(context));
+  state.sig = sig;
+  if (r?.signature != null && r.signature !== sig) { op((c) => doc.refresh(c, session)); return; }
+  document.dispatchEvent(new CustomEvent("siglum:settled"));
 }
 
 async function cite(keys) {
@@ -194,7 +256,7 @@ async function cite(keys) {
   // The supplement belongs to one source, so it is used for a single one only.
   const supplement = list.length === 1 ? parseSupplement($("supplement").value) : {};
   const items = list.map((id) => ({ id, ...supplement }));
-  const r = await op((c) => doc.insertCitation(c, session, items));
+  const r = await op((c) => doc.insertCitation(c, session, items, { onVisible: () => document.dispatchEvent(new CustomEvent("siglum:visible")) }));
   if (r) {
     state.marked = [];
     $("supplement").value = "";
@@ -281,7 +343,7 @@ function watch() {
   };
   Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, () => {
     clearTimeout(timer);
-    timer = setTimeout(check, 1200);
+    timer = setTimeout(check, 700);
   });
 }
 
