@@ -26,7 +26,7 @@ Or type a marker in the text and click Refresh:
 
 The rules for markers:
 
-- A marker starts with `@`. The `@` must be at the start of a paragraph or come after a space, a tab, a no-break space, `(`, `{`, a quotation mark, a dash, `,` or `;`. After anything else it is ordinary text, so e-mail addresses and addresses such as `example.org/@name` stay as they are.
+- A marker starts with `@`. The `@` must be at the start of a paragraph or come after a space, a tab, a no-break space, `(`, `[`, `{`, a quotation mark, a dash, `,` or `;`. After anything else it is ordinary text, so e-mail addresses and addresses such as `example.org/@name` stay as they are.
 - A key can contain letters, combining accents, digits, `_`, `-`, `:` and `.`. It does not end in `.` or `:`, so the full stop in `see @smith2020.` stays in the sentence. Siglum compares keys in Unicode's composed form, so `é` typed as one character or as `e` with a combining accent is the same key.
 - Markers with only spaces or no-break spaces between them become one citation. A tab or a line break between them makes two citations.
 - The text in square brackets right after the key is the supplement. Brackets inside it count in pairs, so `@a[see [2]]` has the supplement `see [2]`. A bracket that does not close in the same paragraph, as in `@a[p. 12`, belongs to the text, and `@a` is a citation without a supplement. A supplement holds no tab or line break.

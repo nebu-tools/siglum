@@ -36,7 +36,7 @@ test("an @ inside a word is never a marker", () => {
 });
 
 test("what may come before a marker", () => {
-  assert.deepEqual(keys("(@a) {@b} “@c” „@d“ – @e —@f '@g' «@h»"), [["a"], ["b"], ["c"], ["d"], ["e"], ["f"], ["g"], ["h"]]);
+  assert.deepEqual(keys("(@a) {@b} “@c” „@d“ – @e —@f '@g' «@h» [@i]"), [["a"], ["b"], ["c"], ["d"], ["e"], ["f"], ["g"], ["h"], ["i"]]);
   assert.deepEqual(keys("a @b,@c;@d\t@e x"), [["b"], ["c"], ["d"], ["e"]]);
   // Anything else before the "@" makes it text.
   assert.deepEqual(keys("x@a /@b <@d> #@e *@f ]@g"), []);

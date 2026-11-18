@@ -70,9 +70,9 @@ export function keysFromTitle(title) {
 // supplement, and markers with only spaces between them are one citation.
 
 // What may come right before the "@": the start of the paragraph, white
-// space, an opening parenthesis or brace, a quotation mark, a dash, a comma or
-// a semicolon. So "name@example.org" and "example.org/@name" are text.
-const BEFORE = /[\s(\{"'“”„‘’‚«»‹›–—,;]/u;
+// space, an opening parenthesis, bracket or brace, a quotation mark, a dash, a
+// comma or a semicolon. So "name@example.org" and "example.org/@name" are text.
+const BEFORE = /[\s(\[\{"'“”„‘’‚«»‹›–—,;]/u;
 // The "@" and its key, which is not cut short: `@a@b` is no marker, and
 // neither is a shortened key. A combining mark belongs to the key it follows,
 // and a key never ends before a joiner, so a marker never ends inside a
