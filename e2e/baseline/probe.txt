@@ -23,10 +23,10 @@ dist-e2e/ for http://localhost:3187
 
 == P3 paste into another document
   after pasting a short, a paged and a cut-title citation: {"status":"5 sources · 2 citations\nUnknown: [1–5]","unknown":[{"index":2,"keys":[],"text":"[1–5]"}],"body":["[1]","[2]","[1–5]",["1.\tAlpha A. First work","2.\tBeta A. Second work"]]}
-  stored items of the pasted citations: [["apkf8A",[{"id":"alphaone2020"}]],["rpkf8B",[{"id":"betatwo2019"}]]]
+  stored items of the pasted citations: [["jidp1A",[{"id":"alphaone2020"}]],["midp1B",[{"id":"betatwo2019"}]]]
   (Word exit 0, saved true)
 
 == CO two Word instances on one file, without the pane
   first instance read-only: False
   second instance: no answer after 20 s (Open() waits on Word's 'file in use' prompt)
-    stopped the second instance (pid 4356)
+    stopped the second instance (pid 58848)
