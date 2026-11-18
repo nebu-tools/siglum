@@ -21,6 +21,7 @@ Siglum reads a paragraph's `text`, finds the markers in it, and then searches th
 - A marker typed inside an existing citation, and inside a bibliography entry: both stay text.
 - A marker inside another add-in's content control that is inside a bibliography: it stays text.
 - A citation whose text was edited to hold `@a`, with `@b` typed after a space: Siglum replaces nothing and reports `@a @b` as not converted. The same with `@b` before the citation.
+- Type `@` right before a citation and a letter at the start of the citation's control, so that the marker reaches into it: Siglum replaces nothing and reports the marker as not converted.
 - A citation inside another add-in's content control, with markers before, inside and after the outer control.
 - Several markers of different lengths in one paragraph, converted in one refresh: each citation stands where its marker stood.
 
@@ -35,7 +36,6 @@ Siglum reads a paragraph's `text`, finds the markers in it, and then searches th
 ## Save and reopen
 
 - In a new document with no store, import a source, cite it, save, close and reopen: the sources and the citation are there.
-
 - Convert markers, save, close, reopen the document, and refresh twice. The first refresh writes nothing, and the second neither.
 
 ## Size

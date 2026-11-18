@@ -117,6 +117,20 @@ function markerAt(text, i) {
 }
 
 /**
+ * Whether a content control that reads `control` can share a character with a
+ * marker group that reads `group`: one holds the other, or one ends as the
+ * other begins. Only then is it worth asking Word where the two ranges are.
+ */
+export function mayTouch(group, control) {
+  if (group.includes(control) || control.includes(group)) return true;
+  const n = Math.min(group.length, control.length);
+  for (let k = 1; k < n; k++) {
+    if (control.endsWith(group.slice(0, k)) || group.endsWith(control.slice(0, k))) return true;
+  }
+  return false;
+}
+
+/**
  * The markers in one paragraph's text, adjacent ones merged into groups:
  * [{start, end, text, items}]. `text` is the group as typed, and the keys in
  * `items` are in Unicode's composed form (NFC), as the library stores them.

@@ -99,6 +99,23 @@ test("a group that reaches over a citation is lost, not replaced", async () => {
   }
 });
 
+test("a citation without an @ that a marker reaches into or over", async () => {
+  for (const needle of ["a", "ab", "b", "b h", "See @"]) {
+    const paragraphs = ["See @ab here."];
+    const r = await locate(paragraphs, [around(paragraphs, 0, needle, CITE_PREFIX + "x1")]);
+    assert.deepEqual(r.at, [], needle);
+    assert.deepEqual(r.lost, ["@ab"], needle);
+  }
+});
+
+test("only the controls whose text can meet a marker are compared", async () => {
+  const paragraphs = ["A claim [1], another [2] and @a here."];
+  const controls = [around(paragraphs, 0, "[1]", CITE_PREFIX + "x1"), around(paragraphs, 0, "[2]", CITE_PREFIX + "x2")];
+  const r = await locate(paragraphs, controls);
+  assert.deepEqual(r.at, [["@a", 29]]);
+  assert.equal(r.doc.syncs, 4);
+});
+
 test("a long key of letters outside the basic plane is cut by its UTF-16 length", async () => {
   const key = Array.from({ length: 200 }, (_, i) => String.fromCodePoint(0x20000 + i)).join("");
   const r = await locate([`See @${key} here.`]);

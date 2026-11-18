@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createRenderer, htmlToRuns, resolveLocale, runsText } from "../src/render.js";
-import { plan, storeToXml, storeFromXml, emptyStore, citeTitle, keysFromTitle, BIB_EMPTY, CITE_NEW, CITE_PREFIX, NS } from "../src/model.js";
+import { plan, mayTouch, storeToXml, storeFromXml, emptyStore, citeTitle, keysFromTitle, BIB_EMPTY, CITE_NEW, CITE_PREFIX, NS } from "../src/model.js";
 
 const csl = (f) => fs.readFileSync(new URL("../csl/" + f, import.meta.url), "utf8");
 const renderer = createRenderer({
@@ -112,6 +112,13 @@ test("titles round-trip keys unless cut short", () => {
   const long = citeTitle(Array.from({ length: 12 }, (_, i) => ({ id: "mueller202" + i })));
   assert.equal(long.length, 64);
   assert.equal(keysFromTitle(long), null);
+});
+
+test("which controls can share a character with a marker group", () => {
+  for (const control of ["@a", "a", "x @", "a y", "see @a here", ""]) assert.equal(mayTouch("@a", control), true, control);
+  for (const control of ["[1]", "b", "[12, 13]", "x"]) assert.equal(mayTouch("@a", control), false, control);
+  assert.equal(mayTouch("@a[p. 1]", "] and"), true);
+  assert.equal(mayTouch("@a[p. 1]", "[1]"), false);
 });
 
 test("the store survives XML", () => {

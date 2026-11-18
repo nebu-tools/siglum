@@ -6,7 +6,7 @@
 
 import {
   NS, CITE_PREFIX, BIB_TAG, CITE_NEW,
-  emptyStore, storeToXml, storeFromXml, newId, citeTitle, findMarkers, plan,
+  emptyStore, storeToXml, storeFromXml, newId, citeTitle, findMarkers, mayTouch, plan,
 } from "./model.js";
 import { documentText, UserError } from "./messages.js";
 
@@ -309,18 +309,24 @@ export async function locateMarkers(context) {
       groups.push({ g, ends: [find(head, g.start), find(tail, g.end - tail.length)] });
     }
   }
-  // An "@" inside a citation or a bibliography, at any depth, is part of its text.
-  const ours = controls.items.filter((cc) => isOurs(cc) && cc.text.includes("@")).map((cc) => cc.getRange("Whole"));
+  // A marker must not touch a citation or a bibliography, at any depth. Word
+  // compares a group's range only with the controls whose text can meet it.
+  const ours = controls.items.filter(isOurs);
+  const whole = new Map();
+  for (const group of groups) {
+    group.near = ours.filter((cc) => mayTouch(group.g.text, cc.text));
+    for (const cc of group.near) if (!whole.has(cc)) whole.set(cc, cc.getRange("Whole"));
+  }
   await context.sync();
 
   const found = [];
-  for (const { g, ends } of groups) {
+  for (const { g, ends, near } of groups) {
     // The paragraph's text and the search must agree on where the marker is.
     if (ends.some(({ s, nth }) => nth === undefined || s.hits.items.length !== s.at.size)) { lost.push(g.text); continue; }
     const [head, tail] = ends.map(({ s, nth }) => s.hits.items[nth]);
     const range = tail ? head.expandTo(tail) : head;
     range.load("text");
-    found.push({ range, g, inside: ours.map((r) => range.compareLocationWith(r)) });
+    found.push({ range, g, inside: near.map((cc) => range.compareLocationWith(whole.get(cc))) });
   }
   await context.sync();
   const markers = [];
