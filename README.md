@@ -37,6 +37,8 @@ Click "Insert bibliography" to put a bibliography at the cursor. A document can 
 
 Siglum renumbers the citations when their order changes. With track changes on, Word records a new citation as an insertion. Siglum writes the changed numbers and the bibliography without tracking, because they follow from the citations.
 
+Siglum writes only what changed. When a new citation changes many numbers, as a new first citation in a long document does, the new citation gets its number at once, and the pane shows "Updating citations: … of …" while the rest follows in batches. You can go on writing and citing meanwhile. If you close the pane or the document before it is done, the next refresh puts the numbers right.
+
 ## Install
 
 An Office add-in has two parts: a web page, and a small file called `manifest.xml` that tells Word where the page is. First put the page on a web server (see the next section). Then give Word the manifest. This is called sideloading.
@@ -98,7 +100,7 @@ The JSON has this shape:
 }
 ```
 
-Each source is a CSL-JSON item. `settings.locale` is the language of the citations and bibliographies. A citation that you paste into another document keeps its keys in the title, if they fit into the 64 characters that a title can have.
+Each source is a CSL-JSON item. `settings.locale` is the language of the citations and bibliographies. A refresh removes the entries of citations that are no longer in the document, except those of citations that wait for review as tracked deletions and those in footnotes, headers and other places outside the body. A citation that you paste into another document keeps its keys in the title, if they fit into the 64 characters that a title can have.
 
 The code defines these names in `src/model.js`.
 

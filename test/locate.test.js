@@ -141,3 +141,18 @@ test("many equal markers in a paragraph cost one search and four syncs", async (
   assert.deepEqual(r.doc.searches, ["@", "@a", "@a"]);
   assert.equal(r.doc.syncs, 4);
 });
+
+test("an e-mail address without a marker costs two syncs and reads no control", async () => {
+  const paragraphs = ["Write to anna@example.org.", "Nothing here.", "Or to ben@example.org and cara@example.org."];
+  const { doc, context } = fakeDocument({ paragraphs, controls: [{ tag: CITE_PREFIX + "x", start: 30, end: 33 }] });
+  const read = [];
+  const cc = Object.getOwnPropertyDescriptor(context.document.body, "contentControls").get;
+  Object.defineProperty(context.document.body, "contentControls", { get() { read.push("controls"); return cc(); } });
+  const r = await locateMarkers(context);
+  assert.deepEqual([r.markers, r.lost, doc.syncs, read], [[], [], 2, []]);
+});
+
+test("markers in two of many paragraphs are found from those paragraphs alone", async () => {
+  const r = await locate(["One @a.", "Two.", "Three @b and @a.", "Four."]);
+  assert.deepEqual(r.at.map(([t]) => t), ["@a", "@b", "@a"]);
+});

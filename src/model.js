@@ -197,7 +197,6 @@ export function parseSupplement(text) {
 // ---- planning an update -------------------------------------------------------
 
 const norm = (s) => String(s ?? "").replace(/\u00a0/g, " ").replace(/[ \t]+/g, " ").trim();
-const lines = (s) => String(s ?? "").split(/[\r\n\v]+/).map(norm).filter(Boolean);
 const isEmpty = (s) => norm(s) === "";
 
 /**
@@ -220,36 +219,106 @@ function sections(sequence) {
   return out;
 }
 
+/** A bibliography's paragraphs, from its text as Word gives it: paragraphs end in "\r". */
+export const paragraphsOf = (text) => {
+  const ps = String(text ?? "").split("\r");
+  if (ps.length > 1 && ps[ps.length - 1] === "") ps.pop();
+  return ps;
+};
+
+// Beyond this many changed entries, or this share of them, a bibliography is
+// written whole: Word takes a whole bibliography in one piece faster than
+// many single entries.
+const EDITS_MAX = 24;
+const EDITS_SHARE = 0.25;
+
+/**
+ * How to turn the paragraphs `have` into the entries `want`, both as texts:
+ * hunks {at, remove, insert}, where `remove` paragraphs from index `at` of
+ * `have` give way to the entries `insert` (indices into `want`). The hunks
+ * are in document order and do not overlap. Returns null when so much
+ * differs that writing the whole bibliography is cheaper.
+ */
+export function diffEntries(have, want) {
+  let start = 0;
+  while (start < have.length && start < want.length && have[start] === want[start]) start++;
+  let end = 0;
+  while (end < have.length - start && end < want.length - start && have[have.length - 1 - end] === want[want.length - 1 - end]) end++;
+  const a = have.slice(start, have.length - end);
+  const b = want.slice(start, want.length - end);
+  const limit = Math.max(EDITS_MAX, Math.ceil(want.length * EDITS_SHARE));
+  if (Math.min(a.length, b.length) > limit || a.length * b.length > 4e6) return null;
+  // Longest common subsequence of the middle parts.
+  const n = a.length;
+  const m = b.length;
+  const len = new Uint32Array((n + 1) * (m + 1));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      len[i * (m + 1) + j] = a[i] === b[j] ? len[(i + 1) * (m + 1) + j + 1] + 1 : Math.max(len[(i + 1) * (m + 1) + j], len[i * (m + 1) + j + 1]);
+    }
+  }
+  const hunks = [];
+  let hunk = null;
+  let changed = 0;
+  const flush = () => { if (hunk) { hunks.push(hunk); changed += Math.max(hunk.remove, hunk.insert.length); hunk = null; } };
+  let i = 0;
+  let j = 0;
+  while (i < n || j < m) {
+    if (i < n && j < m && a[i] === b[j]) { flush(); i++; j++; continue; }
+    hunk ??= { at: start + i, remove: 0, insert: [] };
+    if (j < m && (i === n || len[i * (m + 1) + j + 1] >= len[(i + 1) * (m + 1) + j])) hunk.insert.push(start + j++);
+    else { hunk.remove++; i++; }
+  }
+  flush();
+  return changed > limit ? null : hunks;
+}
+
 /**
  * Plans an update. `controls` are the citations and bibliographies in document
  * order: {kind: "cite", tag, title, current, original} or {kind: "bib", current}.
  * `current` and `original` are the texts with tracked changes accepted and
- * rejected, "" while Word shows the placeholder. `locale` is the language of
- * citations and bibliographies, and `bibEmpty` the text of a bibliography
- * without citations. Returns what to write, by position in `controls`.
+ * rejected, "" while Word shows the placeholder; a bibliography's paragraphs
+ * end in "\r". `locale` is the language of citations and bibliographies,
+ * `bibEmpty` the text of a bibliography without citations, and `elsewhere`
+ * the ids of citations outside the controls, such as in footnotes, whose
+ * stored items stay. Returns what to write, by position in `controls`:
+ *
+ * - `citations`: [{index, runs}], the citations whose text differs;
+ * - `bibs`: [{index, entries, hunks}], the bibliographies that differ, with
+ *   `hunks` from diffEntries, or null to write them whole;
+ * - `removes`: controls emptied by hand;
+ * - `store`: the store to save, when it changed: citations pasted from
+ *   another document join it, and citations that are gone leave it.
+ *
+ * It depends on nothing but its arguments.
  */
-export function plan(controls, store, renderer, { locale = "en-US", bibEmpty = BIB_EMPTY } = {}) {
+export function plan(controls, store, renderer, { locale = "en-US", bibEmpty = BIB_EMPTY, elsewhere = [] } = {}) {
   const sequence = [];
   const out = { citations: [], bibs: [], removes: [], unknown: [], pending: 0, store: null };
-  let citations = store.citations;
+  const citations = {};
+  const kept = new Set(elsewhere);
+  let changed = false;
   controls.forEach((c, index) => {
     if (c.kind === "bib") { sequence.push({ bib: index }); return; }
+    const id = c.tag.slice(CITE_PREFIX.length);
     // Emptied by hand: the control is a leftover. A tracked deletion waits for review.
     if (isEmpty(c.current)) {
-      if (isEmpty(c.original)) out.removes.push(index);
-      else out.pending++;
+      if (isEmpty(c.original)) { out.removes.push(index); return; }
+      out.pending++;
+      kept.add(id);
       return;
     }
-    const id = c.tag.slice(CITE_PREFIX.length);
-    let items = citations[id];
+    kept.add(id);
+    let items = citations[id] ?? store.citations[id];
     if (!items) {
       // Pasted from another document: the title still names the keys.
       const keys = keysFromTitle(c.title);
       if (keys && keys.every((k) => store.sources[k])) {
         items = keys.map((k) => ({ id: k }));
-        citations = { ...citations, [id]: items };
+        changed = true;
       }
     }
+    if (items) citations[id] = items;
     const missing = items ? items.filter((x) => !store.sources[x.id]).map((x) => x.id) : keysFromTitle(c.title) ?? [];
     if (!items || missing.length) {
       out.unknown.push({ index, keys: missing, text: norm(c.current) });
@@ -257,7 +326,9 @@ export function plan(controls, store, renderer, { locale = "en-US", bibEmpty = B
     }
     sequence.push({ index, items, current: c.current });
   });
-  if (citations !== store.citations) out.store = { ...store, citations };
+  // Stored citations of controls that waited for review or are elsewhere stay.
+  for (const id of kept) if (!citations[id] && store.citations[id]) citations[id] = store.citations[id];
+  if (changed || Object.keys(citations).length !== Object.keys(store.citations).length) out.store = { ...store, citations };
 
   const secs = sections(sequence);
   const rendered = renderer.render(secs, store.sources, locale);
@@ -269,8 +340,9 @@ export function plan(controls, store, renderer, { locale = "en-US", bibEmpty = B
     const entries = rendered[s].entries.length ? rendered[s].entries : [[{ text: bibEmpty }]];
     const want = entries.map((e) => norm(runsText(e)));
     for (const bib of sec.bibs) {
-      const have = lines(controls[bib].current);
-      if (want.join("\n") !== have.join("\n")) out.bibs.push({ index: bib, entries });
+      const have = paragraphsOf(controls[bib].current).map(norm);
+      if (want.length === have.length && want.every((w, k) => w === have[k])) continue;
+      out.bibs.push({ index: bib, entries, hunks: diffEntries(have, want) });
     }
   });
   out.sections = secs.length;

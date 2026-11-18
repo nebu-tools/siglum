@@ -54,6 +54,7 @@ export function fakeDocument({ paragraphs = [], controls = [] } = {}) {
         return res;
       },
       get parentContentControlOrNullObject() { return nullable(parentOf(r)); },
+      get paragraphs() { return { getFirst: () => paragraphProxy(paragraphAt(start)) }; },
     };
     return r;
   }
@@ -81,16 +82,27 @@ export function fakeDocument({ paragraphs = [], controls = [] } = {}) {
     return hits;
   });
 
-  const paragraphProxy = (p) => ({
-    text: doc.paragraphs[p],
-    search: (query, options) => search(query, options, p, p),
-  });
+  const paragraphProxy = (p) => {
+    const q = rangeProxy(starts[p], starts[p] + doc.paragraphs[p].length);
+    q.load = (props) => {
+      if (props !== "text") throw new Error(`the fake loads only text, not ${props}`);
+      later(() => { q.text = doc.paragraphs[p]; });
+    };
+    q.search = (query, options) => search(query, options, p, p);
+    // Like Word, a paragraph compares its place only through a range.
+    const compare = q.compareLocationWith;
+    delete q.compareLocationWith;
+    q.getRange = () => ({ ...q, compareLocationWith: compare });
+    return q;
+  };
+  /** The index of the paragraph that holds position `at`. */
+  const paragraphAt = (at) => starts.findLastIndex((x) => x <= at);
 
   const context = {
     document: {
       body: {
         search: (query, options) => search(query, options, 0, doc.paragraphs.length - 1),
-        get paragraphs() { return collection(() => doc.paragraphs.map((_, p) => paragraphProxy(p))); },
+        get paragraphs() { return collection(() => doc.paragraphs.map((_, p) => { const q = paragraphProxy(p); q.text = doc.paragraphs[p]; return q; })); },
         get contentControls() { return collection(() => [...doc.controls].sort((a, b) => a.start - b.start).map(controlProxy)); },
       },
     },
