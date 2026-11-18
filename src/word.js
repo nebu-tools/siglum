@@ -47,23 +47,30 @@ async function openStore(context, session) {
   return storeFromXml(xml.value);
 }
 
-/** Citations and bibliographies in document order, with their texts. */
-async function snapshot(context) {
+/**
+ * Citations and bibliographies in document order, with their texts. A
+ * control's `text` is what it reads with tracked changes accepted, and Word
+ * leaves text that was deleted or moved away out of it. Only a citation that
+ * reads empty needs its text with the changes rejected, to tell a deletion
+ * that waits for review from a control emptied by hand. (getReviewedText
+ * cannot tell a move: it gives the moved text both ways.)
+ */
+export async function readControls(context) {
   const all = citationControls(context);
-  all.load("items/tag,items/title,items/id,items/placeholderText");
+  all.load("items/tag,items/title,items/id,items/text,items/placeholderText");
   await context.sync();
   const ccs = all.items.filter(isOurs);
-  const cur = ccs.map((cc) => cc.getReviewedText("Current"));
-  const orig = ccs.map((cc) => (isCite(cc) ? cc.getReviewedText("Original") : null));
-  await context.sync();
+  const orig = ccs.map((cc) => (isCite(cc) && !cc.text ? cc.getReviewedText("Original") : null));
+  if (orig.some(Boolean)) await context.sync();
   // Word wraps a control's reviewed text in "<…>". An emptied control shows its placeholder.
-  const text = (cc, r) => {
+  const original = (cc, r) => {
+    if (!r) return cc.text;
     const v = r.value.startsWith("<") && r.value.endsWith(">") ? r.value.slice(1, -1) : r.value;
     return v === cc.placeholderText ? "" : v;
   };
   const controls = ccs.map((cc, i) => (isCite(cc)
-    ? { kind: "cite", tag: cc.tag, title: cc.title, current: text(cc, cur[i]), original: text(cc, orig[i]) }
-    : { kind: "bib", current: text(cc, cur[i]) }));
+    ? { kind: "cite", tag: cc.tag, title: cc.title, current: cc.text, original: original(cc, orig[i]) }
+    : { kind: "bib", current: cc.text }));
   return { ccs, controls };
 }
 
@@ -124,7 +131,7 @@ async function withTracking(context, mode, fn) {
  */
 export async function refresh(context, session, { fresh = [], store } = {}) {
   store = store ?? await openStore(context, session);
-  const { ccs, controls } = await snapshot(context);
+  const { ccs, controls } = await readControls(context);
   const { locale } = store.settings;
   const p = plan(controls, store, session.renderer, { locale, bibEmpty: documentText(locale).bibEmpty });
   if (p.store) await saveStore(context, p.store);
