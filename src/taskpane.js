@@ -11,13 +11,14 @@ import { buildIndex, search } from "./search.js";
 import { lookup } from "./lookup.js";
 import { LANGUAGES, pickLanguage, translator, UserError } from "./messages.js";
 import * as doc from "./word.js";
+import { createQueue } from "./queue.js";
 
 // A style picker would replace `style` here. Nothing else knows the style.
 const session = { renderer: createRenderer({ style, locales: { "en-US": enUS, "de-DE": deDE } }), locale: "en-US" };
 const LANGUAGE_KEY = "siglum.language";
 const $ = (id) => document.getElementById(id);
 
-const state = { library: {}, index: [], hits: [], active: 0, marked: [], busy: false, sig: null, status: null };
+const state = { library: {}, index: [], hits: [], active: 0, marked: [], note: null };
 let t = translator("en");
 
 // ---- language -----------------------------------------------------------------
@@ -129,15 +130,28 @@ function toggleMark(key) {
 
 // ---- status ---------------------------------------------------------------------
 
-/** Shows a status. `text` is a function, so the status follows a change of language. */
-function status(text, error = false) {
-  state.status = { text, error };
+/**
+ * The status line: an error, what the last operation has to say (`note`), and
+ * then where the document stands: the progress of a renumbering, citation
+ * numbers that are not up to date, or the summary of the last refresh. Texts
+ * are functions, so the status follows a change of language.
+ */
+function note(text, error = false) {
+  state.note = { text, error };
   showStatus();
 }
 
 function showStatus() {
-  $("status").textContent = state.status ? state.status.text() : "";
-  $("status").classList.toggle("error", Boolean(state.status?.error));
+  const q = queue.state;
+  const lines = [];
+  if (q.error) lines.push(errorText(q.error));
+  if (state.note) lines.push(state.note.text());
+  let problem = Boolean(q.error || state.note?.error);
+  if (q.progress) lines.push(t("progress.writing", q.progress));
+  else if (q.stale) { lines.push(t("status.stale")); problem = true; }
+  else if (q.result && !state.note && !q.error) { lines.push(summary(q.result)); problem ||= hasProblems(q.result); }
+  $("status").textContent = lines.join("\n");
+  $("status").classList.toggle("error", problem);
 }
 
 const errorText = (e) => (e instanceof UserError ? t(e.key, e.params) : e?.message ?? String(e));
@@ -159,95 +173,31 @@ const hasProblems = (r) => Boolean(r.unknown?.length || r.unknownMarkers?.length
 
 // ---- document operations ----------------------------------------------------------
 
-/**
- * Runs document operations one after another and reports their errors. An
- * operation may leave citations to write (`work`, when many numbers change);
- * they are written in batches after it, through the same queue, while the
- * pane stays usable. A new operation drops what is left, because it plans
- * again from what the document holds, so two never interleave.
- */
-let queue = Promise.resolve();
-let waiting = 0;
-let work = null;
-const enqueue = (fn) => {
-  const p = queue.then(fn);
-  queue = p.catch(() => {});
-  return p;
-};
-function op(fn) {
-  waiting++;
-  work = null;
-  const p = enqueue(() => run(fn)).finally(() => { waiting--; });
-  p.then((r) => { if (r?.work) drain(r, r.work); });
-  return p;
-}
-
-function busy(on) {
-  state.busy = on;
-  if (on) document.body.setAttribute("aria-busy", "true");
-  else document.body.removeAttribute("aria-busy");
-}
-
-async function run(fn) {
-  busy(true);
-  try {
-    const r = await Word.run((context) => fn(context));
-    if (r?.store) setStore(r.store);
-    if (r?.work) work = r.work;
-    if (r?.cited != null) status(() => (r.work ? progress(r.work) : summary(r)), hasProblems(r));
-    document.dispatchEvent(new CustomEvent("siglum:done", { detail: r }));
-    if (!r?.work) await settle(r);
-    return r;
-  } catch (e) {
-    status(() => errorText(e), true);
-    console.error(e);
-    document.dispatchEvent(new CustomEvent("siglum:done", { detail: { error: errorText(e) } }));
-    return null;
-  } finally {
-    if (!work) busy(false);
-  }
-}
-
-const progress = (w) => t("progress.writing", { done: w.done, total: w.total });
-
-/** Writes the citations an operation left, a batch at a time, unless a new operation comes. */
-async function drain(r, w) {
-  work = w;
-  busy(true);
-  try {
-    // Batches of about half a second of Word's time: Word does not answer
-    // the keyboard while it works through one.
-    let size = doc.CHUNK;
-    while (work === w && w.citations.length && !waiting) {
-      const t0 = performance.now();
-      const n = Math.min(size, w.citations.length);
-      await enqueue(() => Word.run((context) => doc.writeChunk(context, w, n)));
-      size = Math.max(10, Math.min(200, Math.round((500 * n) / Math.max(1, performance.now() - t0))));
-      if (work === w) status(() => progress(w));
+const queue = createQueue({
+  word: (fn) => Word.run(fn),
+  refresh: (context) => doc.refresh(context, session),
+  writeChunk: doc.writeChunk,
+  signature: doc.signature,
+  chunk: doc.CHUNK,
+  now: () => performance.now(),
+  emit(type, detail) {
+    if (type === "change") {
+      if (detail.busy) document.body.setAttribute("aria-busy", "true");
+      else document.body.removeAttribute("aria-busy");
+      showStatus();
+    } else if (type === "done") {
+      if (detail?.store) setStore(detail.store);
+      document.dispatchEvent(new CustomEvent("siglum:done", { detail: detail?.error ? { error: errorText(detail.error) } : detail }));
+    } else {
+      document.dispatchEvent(new CustomEvent("siglum:settled"));
     }
-    if (work !== w || waiting) return;
-    work = null;
-    status(() => summary(r), hasProblems(r));
-    await enqueue(() => settle(r));
-  } catch (e) {
-    work = null;
-    status(() => errorText(e), true);
-    console.error(e);
-  } finally {
-    if (!work && !waiting) busy(false);
-  }
-}
+  },
+});
 
-/**
- * Notes the order of the controls for the watcher and says that the document
- * is current. If the order changed since the operation read it, as when
- * someone pasted a citation during a long renumbering, it refreshes again.
- */
-async function settle(r) {
-  const sig = await Word.run((context) => doc.signature(context));
-  state.sig = sig;
-  if (r?.signature != null && r.signature !== sig) { op((c) => doc.refresh(c, session)); return; }
-  document.dispatchEvent(new CustomEvent("siglum:settled"));
+/** Runs a document operation through the queue. Its note, if any, replaces the last one's. */
+function op(fn) {
+  state.note = null;
+  return queue.run(fn);
 }
 
 async function cite(keys) {
@@ -271,12 +221,12 @@ async function importFiles(files) {
     try {
       incoming = incoming.concat(parseLibrary(await f.text(), f.name));
     } catch (e) {
-      status(() => t("import.failed", { file: f.name, reason: errorText(e) }), true);
+      note(() => t("import.failed", { file: f.name, reason: errorText(e) }), true);
       return;
     }
   }
   const r = await op((c) => doc.addSources(c, session, (lib) => mergeItems(lib, incoming)));
-  if (r) status(() => `${t("import.done", { added: r.added, updated: r.updated })} · ${sourceCount(r.library)}`);
+  if (r) note(() => `${t("import.done", { added: r.added, updated: r.updated })} · ${sourceCount(r.library)}`);
 }
 
 async function fetchIdent(text) {
@@ -284,14 +234,14 @@ async function fetchIdent(text) {
   try {
     item = await lookup(text);
   } catch (e) {
-    status(() => errorText(e), true);
+    note(() => errorText(e), true);
     return;
   }
   const r = await op((c) => doc.addSources(c, session, (lib) => mergeItems(lib, [item])));
   if (!r) return;
   const same = (a, b) => a && b && String(a).toLowerCase() === String(b).toLowerCase();
   const key = Object.values(r.library).find((x) => same(x.DOI, item.DOI) || same(x.PMID, item.PMID))?.id;
-  status(() => t(r.added ? "lookup.added" : "lookup.known", { key }));
+  note(() => t(r.added ? "lookup.added" : "lookup.known", { key }));
   $("q").value = key ?? "";
   $("ident").value = "";
   showResults();
@@ -330,17 +280,11 @@ function wire() {
 
 // Deleting or pasting a citation changes the order of tags. A quiet check after
 // the cursor moves keeps numbers and bibliographies current without a click.
+// It does not run while citation numbers are known not to be up to date: the
+// status line then asks for a click on Refresh.
 function watch() {
   let timer = null;
-  const check = async () => {
-    if (state.busy) return;
-    try {
-      const sig = await Word.run((context) => doc.signature(context));
-      if (sig !== state.sig) await op((c) => doc.refresh(c, session));
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  const check = () => queue.check().catch((e) => console.error(e));
   Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, () => {
     clearTimeout(timer);
     timer = setTimeout(check, 700);

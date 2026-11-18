@@ -37,7 +37,7 @@ Click "Insert bibliography" to put a bibliography at the cursor. A document can 
 
 Siglum renumbers the citations when their order changes. With track changes on, Word records a new citation as an insertion. Siglum writes the changed numbers and the bibliography without tracking, because they follow from the citations.
 
-Siglum writes only what changed. When a new citation changes many numbers, as a new first citation in a long document does, the new citation gets its number at once, and the pane shows "Updating citations: … of …" while the rest follows in batches. You can go on writing and citing meanwhile. If you close the pane or the document before it is done, the next refresh puts the numbers right.
+Siglum writes only what changed. When a new citation changes many numbers, as a new first citation in a long document does, the new citation gets its number at once, and the pane shows "Updating citations: … of …" while the rest follows in batches. You can go on writing and citing meanwhile. When you do something in the pane before the batches are done, Siglum does it first and then works out the numbers again from the document, and the progress line stays until they are all written. If a batch fails, Siglum also works the numbers out again. If that fails too, the pane says that the citation numbers are not up to date, until a refresh succeeds. If you close the pane or the document before it is done, the next refresh puts the numbers right. The pane refreshes when it opens.
 
 ## Install
 
@@ -112,6 +112,7 @@ The pane is in English or German. It follows the display language of Office, and
 
 - Siglum has one citation style: NLM (Vancouver) with numbers in brackets, in order of appearance. To use another style, replace the `.csl` file and its import in `src/taskpane.js`.
 - Siglum finds citations in the body text only. A citation in a footnote, an endnote, a header, a footer or a text box is not numbered or refreshed: it keeps the text it had, such as `[?]`, and its sources are not in a bibliography.
+- When the document has tracked changes, Siglum reads the citations from the body's XML. If that XML cannot be read, or does not hold the same citations that Word lists, Siglum changes nothing and says so in the pane. Accept or reject the tracked changes around the citations, then refresh.
 - The bundled style does not print a page or another place in the source. Siglum stores the page of `@smith2020[p. 12]` with the citation, but the citation reads `[1]`. A supplement that is not a place, such as `@smith2020[see also]`, is printed.
 - A citation that you paste into another document is known there only by the keys in its title. When the keys did not fit into the title's 64 characters, the citation stays under "Unknown". A page or a note in the citation does not travel with it.
 - A comment on a typed marker is lost when the marker becomes a citation, because Word deletes a comment when all of its text is replaced.
