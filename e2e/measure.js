@@ -4,12 +4,13 @@
 //   ms        wall time from the trigger until the pane reports done
 //   visibleMs for a citation from search, until the pane says the citation
 //             at the cursor has its number ("siglum:visible"), if it says so
+//   settledMs until the pane says the whole document is current ("siglum:settled")
 //   syncs     the pane's context.sync calls in that time
 //   syncMs    time spent inside those syncs, waiting for Word
 //   writes    what the operation wrote: citations, bibliographies, removed controls
 // The settings come from measure-config.json.
 /* global Office */
-import { post, sleep, $, word, paneSyncs, nextDone, done, onReady, idle, pick, heap, isCite, readStore, setTracking, trackedChanges } from "./pane.js";
+import { post, sleep, $, word, command, paneSyncs, nextDone, done, onReady, idle, pick, heap, isCite, isBib, readStore, setTracking, trackedChanges } from "./pane.js";
 import { CITE_NEW } from "../src/model.js";
 import { signature } from "../src/word.js";
 
@@ -17,13 +18,16 @@ const writes = (d) => d && { citations: d.citations?.length, bibs: d.bibs?.lengt
 const report = (name, data) => post({ measure: name, heap: heap(), ...data });
 
 let visibleAt = null;
+let settledAt = null;
 document.addEventListener("siglum:visible", () => { visibleAt ??= performance.now(); });
+document.addEventListener("siglum:settled", () => { settledAt = performance.now(); });
 
 /** Triggers a pane operation and measures it until the pane reports done. */
 async function measure(name, trigger, extra = {}) {
   await idle();
   const t = performance.now();
   visibleAt = null;
+  settledAt = null;
   const d = nextDone();
   trigger();
   const r = await d;
@@ -31,9 +35,9 @@ async function measure(name, trigger, extra = {}) {
   // recording it as one.
   if (r?.error) throw new Error(`pane error during ${name}: ${String(r.error).slice(0, 500)}`);
   const ms = Math.round(performance.now() - t);
-  // A pane that goes on working after "done", in chunks, reports done again at the end.
+  // A pane that goes on writing in batches after "done" says "siglum:settled" when the document is current.
   await idle();
-  const settled = Math.round(performance.now() - t);
+  const settled = Math.round((settledAt ?? performance.now()) - t);
   report(name, { ms, settledMs: settled, visibleMs: visibleAt == null ? undefined : Math.round(visibleAt - t), ...paneSyncs(t), writes: writes(r), status: $("status").textContent.slice(0, 200), ...extra });
   return r;
 }
@@ -171,8 +175,90 @@ async function scenario(cfg) {
     report("read: count tracked changes", { ms: Math.round(performance.now() - t), trackedChanges: n });
   }
 
+  if (cfg.steps?.includes("floor")) await floor();
+
   const s = await readStore();
   report("stored data", { parts: s.parts, bytes: s.bytes, citations: Object.keys(s.store.citations).length });
+}
+
+/**
+ * Where Word sets the floor, in minimal experiments outside the pane: the
+ * same 100 citation writes through Office.js and through Word's object
+ * model, how the cost of a write grows in one session, and the ways to write
+ * a bibliography. Only with --steps floor; it changes the document.
+ */
+async function floor() {
+  const cites = (c) => citations(c);
+  const officeJs = async (name, from, n = 100) => {
+    const r = await word(async (c) => {
+      const a = (await cites(c)).slice(from, from + n);
+      const t = performance.now();
+      a.forEach((x, i) => x.insertText(i % 2 ? "[x]" : "[y]", "Replace"));
+      await c.sync();
+      return { msPerWrite: +((performance.now() - t) / a.length).toFixed(1) };
+    });
+    report(name, r);
+    return r;
+  };
+  await officeJs("floor: 100 citation writes, Office.js", 0);
+  const com = await command("$cs = $doc.ContentControls; $sw = [Diagnostics.Stopwatch]::StartNew(); for ($i = 201; $i -le 300; $i++) { $cs.Item($i).Range.Text = '[c]' }; $sw.ElapsedMilliseconds");
+  report("floor: 100 citation writes, Word's object model", { msPerWrite: +(com / 100).toFixed(1) });
+  await officeJs("floor: the same 100 writes again, the text unchanged", 0);
+  for (let k = 1; k <= 10; k++) await officeJs(`floor: round ${k} of 200 writes in one session`, 400 + ((k * 200) % 3000), 200);
+  await command("$doc.UndoClear(); 1");
+  await officeJs("floor: 100 writes after clearing the undo list", 0);
+  const reviewed = await word(async (c) => {
+    const a = (await cites(c)).slice(0, 50);
+    const t = performance.now();
+    a.forEach((x) => x.getReviewedText("Current"));
+    await c.sync();
+    return { msPerControl: +((performance.now() - t) / 50).toFixed(1) };
+  });
+  report("floor: getReviewedText, per control", reviewed);
+  const ooxml = await word(async (c) => {
+    const t = performance.now();
+    const x = c.document.body.getOoxml();
+    await c.sync();
+    return { ms: Math.round(performance.now() - t), bytes: x.value.length };
+  });
+  report("floor: body.getOoxml", ooxml);
+  const bib = async (name, write) => {
+    const r = await word(async (c) => {
+      const all = c.document.body.contentControls;
+      all.load("items/tag");
+      await c.sync();
+      const b = all.items.find(isBib);
+      const ps = b.paragraphs;
+      ps.load("items/text");
+      await c.sync();
+      const t = performance.now();
+      const n = write(b, ps.items);
+      await c.sync();
+      return { ms: Math.round(performance.now() - t), entries: n };
+    });
+    report(name, r);
+  };
+  await bib("floor: bibliography, 20 entries rewritten one by one", (b, ps) => { ps.slice(0, 20).forEach((p) => p.insertText(p.text + " ", "Replace")); return 20; });
+  await bib("floor: bibliography, whole, one OOXML insert", (b, ps) => {
+    const esc = (x) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    const body = ps.map((p) => `<w:p><w:pPr><w:ind w:left="567" w:hanging="567"/></w:pPr><w:r><w:t xml:space="preserve">${esc(p.text)}</w:t></w:r></w:p>`).join("");
+    b.getRange("Content").insertOoxml(`<pkg:package xmlns:pkg="http://schemas.microsoft.com/office/2006/xmlPackage"><pkg:part pkg:name="/_rels/.rels" pkg:contentType="application/vnd.openxmlformats-package.relationships+xml"><pkg:xmlData><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships></pkg:xmlData></pkg:part><pkg:part pkg:name="/word/document.xml" pkg:contentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"><pkg:xmlData><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document></pkg:xmlData></pkg:part></pkg:package>`, "Replace");
+    return ps.length;
+  });
+  await bib("floor: bibliography, whole, as main wrote it (a write per run and per indent)", (b, ps) => {
+    const texts = ps.map((p) => p.text);
+    texts.forEach((x, i) => {
+      const p = i ? b.insertParagraph("", "End") : b.paragraphs.getFirst();
+      const [num, rest] = x.split("\t");
+      for (const [k, part] of [num, "\t", rest ?? ""].entries()) {
+        const r = i === 0 && k === 0 ? b.insertText(part, "Replace") : p.insertText(part, "End");
+        r.font.italic = false; r.font.bold = false; r.font.superscript = false; r.font.subscript = false;
+      }
+      p.leftIndent = 28.35;
+      p.firstLineIndent = -28.35;
+    });
+    return texts.length;
+  });
 }
 
 onReady(async () => {
