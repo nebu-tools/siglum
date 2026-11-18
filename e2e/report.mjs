@@ -20,7 +20,8 @@ for (const op of ops) {
   const cells = runs.map((r) => {
     const x = r.rows.find((y) => y.measure === op);
     if (!x) return "";
-    if (op.startsWith("read:")) return `${sec(x.readMs)} (${x.controls} controls)`;
+    if (x.trackedChanges != null) return `${sec(x.ms)} (${x.trackedChanges} tracked changes)`;
+    if (op.startsWith("read:")) return `${sec(x.readMs || x.loadMs)} (${x.controls} controls)`;
     if (x.changes) return JSON.stringify(x.changes);
     if (x.bytes) return `${Math.round(x.bytes / 1024)} KB in ${x.parts} part(s)`;
     const parts = [sec(x.ms)];
@@ -28,7 +29,6 @@ for (const op of ops) {
     if (x.syncMs != null && x.ms) parts.push(`${Math.round((100 * x.syncMs) / x.ms)} % in Word`);
     if (x.writes) parts.push(`writes ${x.writes.citations}c/${x.writes.bibs}b`);
     if (x.refreshed === false) parts.push("no refresh");
-    if (x.trackedChanges != null) parts.push(`${x.trackedChanges} tracked`);
     return parts.filter(Boolean).join(", ");
   });
   console.log(`| ${op} | ${cells.join(" | ")} |`);

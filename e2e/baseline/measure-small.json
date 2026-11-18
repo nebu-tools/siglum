@@ -1,0 +1,373 @@
+{
+  "size": "small",
+  "spec": {
+    "pages": 20,
+    "citations": 100,
+    "bibs": 1,
+    "refs": 50
+  },
+  "generated": {
+    "pages": 20,
+    "paragraphs": 100,
+    "citations": 100,
+    "bibs": 1,
+    "refs": 50,
+    "cited": 40,
+    "storeBytes": 27459,
+    "documentBytes": 117764,
+    "nodeRenderMs": 145,
+    "stale": false,
+    "fresh": [
+      "weber2022",
+      "nguyen2004",
+      "brown2019",
+      "mueller2007a",
+      "lee1998",
+      "kowalski2020",
+      "mueller2024",
+      "kowalski2008"
+    ]
+  },
+  "word": {
+    "startSeconds": 0.7355100999999999,
+    "version": "16.0",
+    "build": "16.0.20326",
+    "openSeconds": 0.3784152,
+    "pid": 54592,
+    "paneSeconds": 25.505501,
+    "peakWorkingSetMB": 273,
+    "privateMB": 209,
+    "pages": 21,
+    "pagesSeconds": 0.1106098,
+    "saveSeconds": 0.12218259999999999
+  },
+  "code": 0,
+  "ok": true,
+  "seconds": 31.066,
+  "rows": [
+    {
+      "measure": "open pane",
+      "heap": 23,
+      "ms": 1169,
+      "syncs": 11,
+      "syncMs": 300,
+      "each": [
+        4,
+        4,
+        3,
+        41,
+        0,
+        16,
+        217,
+        0,
+        0,
+        16,
+        0
+      ],
+      "writes": {
+        "citations": 0,
+        "bibs": 0,
+        "removes": 0,
+        "cited": 100,
+        "pending": 0,
+        "unknown": 0
+      },
+      "office": {
+        "version": "16.0.20326.20318",
+        "platform": "PC"
+      }
+    },
+    {
+      "measure": "refresh, nothing to change",
+      "heap": 24,
+      "ms": 413,
+      "syncs": 11,
+      "syncMs": 563,
+      "each": [
+        4,
+        3,
+        47,
+        0,
+        22,
+        276,
+        198,
+        0,
+        0,
+        14,
+        0
+      ],
+      "writes": {
+        "citations": 0,
+        "bibs": 0,
+        "removes": 0,
+        "cited": 100,
+        "pending": 0,
+        "unknown": 0
+      },
+      "status": "50 Quellen · 100 Zitate"
+    },
+    {
+      "measure": "signature (watcher's check)",
+      "heap": 24,
+      "ms": 17,
+      "syncs": 1,
+      "length": 1884
+    },
+    {
+      "measure": "cursor move, nothing changed (3.5 s window)",
+      "heap": 24,
+      "ms": null,
+      "syncs": 3,
+      "syncMs": 18,
+      "each": [
+        4,
+        14,
+        0
+      ],
+      "refreshed": false
+    },
+    {
+      "measure": "cursor move after a deletion (watcher refresh)",
+      "heap": 28,
+      "ms": 2044,
+      "syncs": 10,
+      "syncMs": 327,
+      "each": [
+        15,
+        0,
+        8,
+        4,
+        17,
+        272,
+        0,
+        0,
+        12,
+        0
+      ],
+      "writes": {
+        "citations": 0,
+        "bibs": 0,
+        "removes": 0,
+        "cited": 99,
+        "pending": 0,
+        "unknown": 0
+      }
+    },
+    {
+      "measure": "cite from search at the start (all numbers shift)",
+      "heap": 34,
+      "ms": 1313,
+      "syncs": 15,
+      "syncMs": 1267,
+      "each": [
+        3,
+        3,
+        1,
+        11,
+        15,
+        6,
+        6,
+        21,
+        252,
+        9,
+        12,
+        913,
+        0,
+        15,
+        0
+      ],
+      "writes": {
+        "citations": 100,
+        "bibs": 1,
+        "removes": 0,
+        "cited": 100,
+        "pending": 0,
+        "unknown": 0
+      },
+      "status": "50 Quellen · 100 Zitate"
+    },
+    {
+      "measure": "cite from search near the end",
+      "heap": 34,
+      "ms": 2297,
+      "syncs": 15,
+      "syncMs": 2253,
+      "each": [
+        12,
+        3,
+        2,
+        19,
+        19,
+        4,
+        7,
+        18,
+        285,
+        11,
+        19,
+        1831,
+        0,
+        23,
+        0
+      ],
+      "writes": {
+        "citations": 1,
+        "bibs": 1,
+        "removes": 0,
+        "cited": 101,
+        "pending": 0,
+        "unknown": 0
+      },
+      "status": "50 Quellen · 101 Zitate"
+    },
+    {
+      "measure": "typed marker at the start + refresh",
+      "heap": 25,
+      "ms": 2957,
+      "syncs": 14,
+      "syncMs": 2917,
+      "each": [
+        7,
+        3,
+        47,
+        12,
+        46,
+        4,
+        22,
+        223,
+        5,
+        6,
+        2525,
+        0,
+        19,
+        0
+      ],
+      "writes": {
+        "citations": 102,
+        "bibs": 1,
+        "removes": 0,
+        "cited": 102,
+        "pending": 0,
+        "unknown": 0
+      },
+      "status": "1 [@…] umgewandelt. 50 Quellen · 102 Zitate",
+      "marker": "[@brown2019]"
+    },
+    {
+      "measure": "cite at the start with track changes on",
+      "heap": 31,
+      "ms": 1792,
+      "syncs": 17,
+      "syncMs": 1745,
+      "each": [
+        4,
+        3,
+        1,
+        17,
+        18,
+        10,
+        7,
+        22,
+        296,
+        11,
+        13,
+        8,
+        1296,
+        6,
+        0,
+        32,
+        0
+      ],
+      "writes": {
+        "citations": 103,
+        "bibs": 1,
+        "removes": 0,
+        "cited": 103,
+        "pending": 0,
+        "unknown": 0
+      },
+      "status": "50 Quellen · 103 Zitate"
+    },
+    {
+      "measure": "tracked changes after that",
+      "heap": 31,
+      "changes": {
+        "Added": 1
+      }
+    },
+    {
+      "measure": "(setup: reset every citation text)",
+      "heap": 32,
+      "ms": 920
+    },
+    {
+      "measure": "full refresh, every citation rewritten",
+      "heap": 36,
+      "ms": 1378,
+      "syncs": 12,
+      "syncMs": 1340,
+      "each": [
+        6,
+        3,
+        55,
+        0,
+        23,
+        327,
+        0,
+        1,
+        904,
+        0,
+        23,
+        0
+      ],
+      "writes": {
+        "citations": 103,
+        "bibs": 0,
+        "removes": 0,
+        "cited": 103,
+        "pending": 0,
+        "unknown": 0
+      },
+      "status": "50 Quellen · 103 Zitate"
+    },
+    {
+      "measure": "refresh again, nothing to change",
+      "heap": 27,
+      "ms": 495,
+      "syncs": 10,
+      "syncMs": 455,
+      "each": [
+        4,
+        4,
+        60,
+        0,
+        22,
+        352,
+        0,
+        0,
+        15,
+        0
+      ],
+      "writes": {
+        "citations": 0,
+        "bibs": 0,
+        "removes": 0,
+        "cited": 103,
+        "pending": 0,
+        "unknown": 0
+      },
+      "status": "50 Quellen · 103 Zitate"
+    },
+    {
+      "measure": "search keystroke",
+      "heap": 28,
+      "ms": 1,
+      "hits": 1
+    },
+    {
+      "measure": "stored library",
+      "heap": 28,
+      "parts": 1,
+      "bytes": 27568
+    }
+  ]
+}

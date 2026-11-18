@@ -1,0 +1,39 @@
+dist-e2e-probe/ für http://localhost:3188
+
+== P1 places, copy, move, tracked move
+  first refresh: {"status":"9 Quellen · 4 Zitate · 2 Abschnitte","written":4,"unknown":[]}
+  body after first refresh: [["cite","[1]"],["cite","[2]"],["cite","[3]"],["list",["1.\tAlpha A. First work","2.\tBeta A. Second work","3.\tGamma A. Third work"]],["cite","[1]"],["list",["1.\tDelta A. Fourth wor"]]]
+  seen through other collections: {"header (sections[0].getHeader)":["[?]"],"footnote (body.footnotes)":["[?]"],"endnote (body.endnotes)":["[?]"]}
+  five-work citation: {"title":"Zitat: alphaeins2020; betazwei2019; gammadrei2018; deltavier201…","text":"[1–5]"}
+  copy B into section 2: watcher refreshed: true
+  after copy: [["cite","[1–5]"],["cite","[1]"],["cite","[2]"],["cite","[3]"],["list",["1.\tAlpha A. First work","2.\tBeta A. Second work","3.\tGamma A. Third work","4.\tDelta A. Fourth wor","5.\tEpsilon A. Fifth wo"]],["cite","[1]"],["cite","[2]"],["list",["1.\tDelta A. Fourth wor","2.\tBeta A. Second work"]]]
+  move C to section 2: watcher refreshed: true
+  after move: [["cite","[1–5]"],["cite","[1]"],["cite","[2]"],["list",["1.\tAlpha A. First work","2.\tBeta A. Second work","3.\tGamma A. Third work","4.\tDelta A. Fourth wor","5.\tEpsilon A. Fifth wo"]],["cite","[1]"],["cite","[2]"],["cite","[3]"],["list",["1.\tDelta A. Fourth wor","2.\tGamma A. Third work","3.\tBeta A. Second work"]]]
+  tracked move S2 to section 1: {"watcher":true,"status":"9 Quellen · 6 Zitate · 2 Abschnitte · 1 gelöscht, offen in der Überarbeitung","body":[["cite","[1–5]"],["cite","[1]"],["cite","[4]"],["cite","[2]"],["list",["1.\tAlpha A. First work","2.\tBeta A. Second work","3.\tGamma A. Third work","4.\tDelta A. Fourth wor","5.\tEpsilon A. Fifth wo"]],["cite",""],["cite","[1]"],["cite","[2]"],["list",["1.\tGamma A. Third work","2.\tBeta A. Second work"]]],"tracked":[["Added",""],["Added",""],["Deleted",""]]}
+  store before saving: {"parts":1,"citations":9,"works":9}
+  (Word exit 0, saved true)
+
+== S what the saved file holds
+  citation in footnote: [["s5dcmi6evfFN","[?]"]]
+  citation in endnote: [["gbp6au6evfEN","[?]"]]
+  citation in header: [["8sb2426evfHD","[?]"]]
+  citation in text box: [["mlcinp6evfTB","[?]"]]
+  custom XML parts with urn:newga:zitate:1: 1
+  stored citations 9, citation controls in the file 9, stored without a control 0, controls without a stored entry 0
+  works in the library 9
+
+== P2 reopen the saved file
+  first refresh after reopening: {"status":"9 Quellen · 6 Zitate · 2 Abschnitte · 1 gelöscht, offen in der Überarbeitung","citations":0,"bibs":0,"removes":0,"pending":1}
+  library after reopening: {"parts":1,"works":9,"citations":9}
+  body after reopening: [["cite","[1–5]"],["cite","[1]"],["cite","[4]"],["cite","[2]"],["list",["1.\tAlpha A. First work","2.\tBeta A. Second work","3.\tGamma A. Third work","4.\tDelta A. Fourth wor","5.\tEpsilon A. Fifth wo"]],["cite",""],["cite","[1]"],["cite","[2]"],["list",["1.\tGamma A. Third work","2.\tBeta A. Second work"]]]
+  (Word exit 0, saved true)
+
+== P3 paste into another document
+  after pasting short, locator and long-title citations: {"status":"5 Quellen · 2 Zitate\nUnbekannt: [1–5]","unknown":[{"index":2,"keys":[],"text":"[1–5]"}],"body":[["cite","[1]"],["cite","[2]"],["cite","[1–5]"],["list",["1.\tAlpha A. First work","2.\tBeta A. Second work"]]]}
+  stored items of the pasted citations: [[{"id":"alphaeins2020"}],[{"id":"betazwei2019"}]]
+  (Word exit 0, saved true)
+
+== CO two Word instances on one file, no pane
+  first instance read-only: False
+  second instance: no answer after 20 s (Open() blocks, presumably on Word's 'file in use' prompt)
+    stopped the second instance (pid 69064)

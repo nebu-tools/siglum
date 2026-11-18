@@ -89,6 +89,55 @@ to follow an interface translation. The harness pages listen for
 `zitate:ready`/`zitate:done` and the likely renames (`siglum:*`,
 `citations:*`); add the new name to `pane.js` if it differs.
 
+## Baseline: main at 3c29799, 2026-11-18
+
+Word 16.0.20326.20318 (Office 2021 ProPlus Retail, Current Channel, x64),
+Windows 11 Pro Education build 26300, WebView2 157.0.4341.60, WSL 2 mirrored networking. Raw rows in `baseline/measure-*.json`,
+probe output in `baseline/probe.txt`. Compare a branch with
+`node e2e/report.mjs e2e/baseline/measure-medium.json dist-e2e/measure-medium.json`.
+The large column comes from two sessions (`large`, stopped by the old
+10-minute limit after the marker step, then `large --steps tracked,full,search,reads`),
+and both ran while another Word instance on the machine was busy, so expect
+some noise. "Pages" is Word's own count.
+
+| operation | small (21 p., 100 cit., 1 lists, 50 works) | medium (181 p., 1000 cit., 3 lists, 500 works) | large (578 p., 4000 cit., 6 lists, 2000 works) |
+| --- | --- | --- | --- |
+| open pane | 1.2 s, 11 syncs, 26 % in Word, writes 0c/0b | 22 s, 13 syncs, 94 % in Word, writes 0c/0b | 357 s, 13 syncs, 100 % in Word, writes 0c/0b |
+| refresh, nothing to change | 0.4 s, 11 syncs, 136 % in Word, writes 0c/0b | 36 s, 10 syncs, 97 % in Word, writes 0c/0b | 303 s, 10 syncs, 99 % in Word, writes 0c/0b |
+| signature (watcher's check) | 0.0 s, 1 syncs | 0.1 s, 1 syncs | 0.3 s, 1 syncs |
+| cursor move, nothing changed (3.5 s window) | 3 syncs, no refresh | 2 syncs, no refresh | 2 syncs, no refresh |
+| cursor move after a deletion (watcher refresh) | 2.0 s, 10 syncs, 16 % in Word, writes 0c/0b | 32 s, 12 syncs, 94 % in Word, writes 77c/1b | 377 s, 10 syncs, 99 % in Word, writes 0c/0b |
+| cite from search at the start (all numbers shift) | 1.3 s, 15 syncs, 96 % in Word, writes 100c/1b | 31 s, 15 syncs, 98 % in Word, writes 334c/1b | 521 s, 15 syncs, 99 % in Word, writes 668c/1b |
+| cite from search near the end | 2.3 s, 15 syncs, 98 % in Word, writes 1c/1b | 55 s, 15 syncs, 99 % in Word, writes 1c/1b | 454 s, 15 syncs, 99 % in Word, writes 1c/1b |
+| typed marker at the start + refresh | 3.0 s, 14 syncs, 99 % in Word, writes 102c/1b | 72 s, 14 syncs, 99 % in Word, writes 335c/1b | 564 s, 14 syncs, 99 % in Word, writes 669c/1b |
+| cite at the start with track changes on | 1.8 s, 17 syncs, 97 % in Word, writes 103c/1b | 81 s, 17 syncs, 99 % in Word, writes 336c/1b | 446 s, 17 syncs, 99 % in Word, writes 668c/1b |
+| tracked changes after that | {"Added":1} | {"Added":1} | {"Added":1} |
+| (setup: reset every citation text) | 0.9 s | 41 s | 251 s |
+| full refresh, every citation rewritten | 1.4 s, 12 syncs, 97 % in Word, writes 103c/0b | 90 s, 12 syncs, 99 % in Word, writes 1003c/0b | 929 s, 12 syncs, 100 % in Word, writes 4001c/0b |
+| refresh again, nothing to change | 0.5 s, 10 syncs, 92 % in Word, writes 0c/0b | 43 s, 10 syncs, 98 % in Word, writes 0c/0b | 409 s, 10 syncs, 99 % in Word, writes 0c/0b |
+| search keystroke | 0.0 s | 0.0 s | 0.0 s |
+| stored library | 27 KB in 1 part(s) | 264 KB in 1 part(s) | 1066 KB in 1 part(s) |
+| read: load tag,title,id,placeholderText |  |  | 0.4 s (4007 controls) |
+| read: + load text |  |  | 0.8 s (4007 controls) |
+| read: + getReviewedText Current |  |  | 210 s (4007 controls) |
+| read: + getReviewedText Current and Original |  |  | 350 s (4007 controls) |
+| read: count tracked changes |  |  | 0.1 s (2 tracked changes) |
+| Word: open document (COM) | 0.4 s | 0.7 s | 3.5 s |
+| Word: save | 0.1 s | 0.8 s | 1.1 s |
+| Word: peak working set | 273 MB | 343 MB | 512 MB |
+| Word: UI stalls ≥ 1 s (count, longest) |  |  | 4, 2.3 s |
+| pane JS heap, last | 28 MB | 34 MB | 31 MB |
+| citeproc in Node, whole document | 0.1 s | 0.8 s | 9.7 s |
+
+Where the time goes: in every refresh one `context.sync` holds 95–99 % of the
+time. It is the snapshot in `src/word.js`, which asks every control for
+`getReviewedText("Current")` and `("Original")`. The `read:` rows show the
+same read with `load("text")` takes 0.8 s for 4,007 controls; the two
+reviewed texts take 350 s. The second large sync, when there is one, writes
+the citations and lists (480 s for 4,001 citations, 61 s for one list of
+about 200 entries). citeproc in the pane is a few seconds at most. Round
+trips are a fixed 10–17 per operation, so their number is not the problem.
+
 ## Cleaning up
 
 Nothing is left behind on success or failure: the registry value is removed
