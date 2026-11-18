@@ -237,7 +237,8 @@ function piece(text, fromEnd) {
   let n = 0;
   let len = 0;
   for (const c of fromEnd ? [...text].reverse() : text) {
-    len += c === "^" ? 2 : 1;
+    // Word counts UTF-16 units, and the caret is searched doubled.
+    len += c === "^" ? 2 : c.length;
     if (len > SEARCH_MAX) break;
     n += c.length;
   }
@@ -246,8 +247,10 @@ function piece(text, fromEnd) {
   return text.slice(0, n);
 }
 
-// How a range inside a content control compares with the control's range.
+// How a range compares with a content control's range: inside it, or clear of it.
+// Any other relation means that the two overlap.
 const INSIDE = new Set(["Inside", "InsideStart", "InsideEnd", "Equal"]);
+const APART = new Set(["Before", "After", "AdjacentBefore", "AdjacentAfter", "Unrelated"]);
 
 /** Where `needle` starts in `text`, without overlaps and in order, as Word's search reports it. */
 function occurrences(text, needle) {
@@ -268,8 +271,9 @@ function occurrences(text, needle) {
  * a search can be, one for its start and one for its end and the range
  * between them. Each distinct text is searched once per paragraph, and the
  * group is the hit at its place among the text's occurrences. A group whose
- * range does not read exactly as the paragraph's text does is lost, so
- * nothing is replaced on a guess. All this takes four syncs.
+ * range does not read exactly as the paragraph's text does is lost, and so is
+ * one that reaches into or over a citation or a bibliography, so nothing is
+ * replaced on a guess. All this takes four syncs.
  */
 export async function locateMarkers(context) {
   const body = context.document.body;
@@ -322,7 +326,8 @@ export async function locateMarkers(context) {
   const markers = [];
   for (const { range, g, inside } of found) {
     if (range.text !== g.text) lost.push(g.text);
-    else if (!inside.some((x) => INSIDE.has(x.value))) markers.push({ range, items: g.items, text: g.text });
+    else if (inside.every((x) => APART.has(x.value))) markers.push({ range, items: g.items, text: g.text });
+    else if (!inside.some((x) => INSIDE.has(x.value))) lost.push(g.text);
   }
   return { markers, lost };
 }

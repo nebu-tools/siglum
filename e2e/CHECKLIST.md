@@ -20,13 +20,21 @@ Siglum reads a paragraph's `text`, finds the markers in it, and then searches th
 - Markers in table cells, including two cells in one row with the same marker.
 - A marker typed inside an existing citation, and inside a bibliography entry: both stay text.
 - A marker inside another add-in's content control that is inside a bibliography: it stays text.
+- A citation whose text was edited to hold `@a`, with `@b` typed after a space: Siglum replaces nothing and reports `@a @b` as not converted. The same with `@b` before the citation.
+- A citation inside another add-in's content control, with markers before, inside and after the outer control.
+- Several markers of different lengths in one paragraph, converted in one refresh: each citation stands where its marker stood.
 
 ## Long groups
 
 - A group of 25 markers with supplements, more than 255 characters, cited as one citation. Siglum finds its first and last part and takes the range between them.
 - The same long group twice in one paragraph.
+- Two different long groups in one paragraph that begin or end with the same markers.
+- A key of 130 letters outside the basic plane, such as rare Chinese characters, which is over 255 UTF-16 units: the search does not fail.
+- A supplement with `^p`, `^t`, `^?` and `*` after "Use wildcards" was switched on in Word's Find dialog: the marker is still found as typed.
 
 ## Save and reopen
+
+- In a new document with no store, import a source, cite it, save, close and reopen: the sources and the citation are there.
 
 - Convert markers, save, close, reopen the document, and refresh twice. The first refresh writes nothing, and the second neither.
 

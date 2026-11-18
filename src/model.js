@@ -39,10 +39,17 @@ export function storeToXml({ sources, citations, settings }) {
   return `<?xml version="1.0" encoding="UTF-8"?><${ROOT} xmlns="${NS}">${escapeXml(JSON.stringify({ sources, citations, settings }))}</${ROOT}>`;
 }
 
+const isRecord = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
+
 export function storeFromXml(xml) {
   const m = PAYLOAD.exec(xml);
   if (!m) throw new Error("The document's Siglum store is damaged.");
-  const { sources, citations, settings } = JSON.parse(unescapeXml(m[1]));
+  let data;
+  try { data = JSON.parse(unescapeXml(m[1])); } catch { data = null; }
+  const { sources, citations, settings } = data ?? {};
+  if (!isRecord(sources) || !isRecord(citations) || !isRecord(settings) || typeof settings.locale !== "string") {
+    throw new Error("The document's Siglum store is damaged.");
+  }
   return { sources, citations, settings };
 }
 
@@ -121,13 +128,15 @@ export function findMarkers(text) {
     const first = i === 0 || BEFORE.test(text[i - 1]) ? markerAt(text, i) : null;
     if (!first) { i++; continue; }
     const items = [first.item];
+    const seen = new Set([JSON.stringify(first.item)]);
     let end = first.end;
     for (;;) {
       GAP.lastIndex = end;
       const next = GAP.test(text) ? markerAt(text, GAP.lastIndex) : null;
       if (!next) break;
       // A source cited twice in a row, without a supplement, counts once.
-      if (!items.some((x) => JSON.stringify(x) === JSON.stringify(next.item))) items.push(next.item);
+      const same = JSON.stringify(next.item);
+      if (!seen.has(same)) { seen.add(same); items.push(next.item); }
       end = next.end;
     }
     groups.push({ start: i, end, text: text.slice(i, end), items });

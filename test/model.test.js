@@ -122,5 +122,9 @@ test("the store survives XML", () => {
   assert.deepEqual(storeFromXml(xml), s);
   assert.deepEqual(storeFromXml(xml.replace("<?xml version=\"1.0\" encoding=\"UTF-8\"?>", "")), s);
   assert.throws(() => storeFromXml(""));
+  const damaged = (json) => storeToXml(s).replace(/\{.*\}/, json);
+  for (const json of ["{", "null", "[]", "{\"sources\":{},\"citations\":{}}", "{\"sources\":[],\"citations\":{},\"settings\":{\"locale\":\"en-US\"}}", "{\"sources\":{},\"citations\":{},\"settings\":{}}"]) {
+    assert.throws(() => storeFromXml(damaged(json)), /damaged/, json);
+  }
   assert.deepEqual(storeFromXml(storeToXml(emptyStore("de-DE"))), { sources: {}, citations: {}, settings: { locale: "de-DE" } });
 });

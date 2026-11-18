@@ -90,6 +90,23 @@ test("a marker inside a citation or a bibliography is part of its text", async (
   assert.deepEqual(r.at, [["@a", 23], ["@a", paragraphs[0].length + 1 + paragraphs[1].length + 1 + 7]]);
 });
 
+test("a group that reaches over a citation is lost, not replaced", async () => {
+  for (const needle of ["@a", "@b", "a @"]) {
+    const paragraphs = ["See @a @b here."];
+    const r = await locate(paragraphs, [around(paragraphs, 0, needle, CITE_PREFIX + "x1")]);
+    assert.deepEqual(r.at, [], needle);
+    assert.deepEqual(r.lost, ["@a @b"], needle);
+  }
+});
+
+test("a long key of letters outside the basic plane is cut by its UTF-16 length", async () => {
+  const key = Array.from({ length: 200 }, (_, i) => String.fromCodePoint(0x20000 + i)).join("");
+  const r = await locate([`See @${key} here.`]);
+  assert.deepEqual(r.at, [["@" + key, 4]]);
+  assert.deepEqual(r.lost, []);
+  assert.ok(r.doc.searches.every((s) => s.length <= 255));
+});
+
 test("a marker two levels deep inside a citation or a bibliography is part of its text", async () => {
   const paragraphs = ["Cited [1 @a] here, and @a outside.", "1. Lee K. Mail @a in an entry."];
   const cite = around(paragraphs, 0, "[1 @a]", CITE_PREFIX + "x1");
