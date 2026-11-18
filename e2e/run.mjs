@@ -10,94 +10,40 @@
 //   npm run e2e        results in dist-e2e/{a,b,r,c}.docx
 //
 // Needs a tabellion checkout for gba.R and the templates: ../tabellion, or set TABELLION_DIR.
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { serve } from "../scripts/serve.mjs";
+import { root, dist, build, requireWindows, withPane, inWord as session, stop } from "./rig.mjs";
 
-const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repo = path.resolve(process.env.TABELLION_DIR ?? path.join(root, "..", "tabellion"));
-const PS = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe";
-const PORT = 3187;
-const ADDIN_ID = /<Id>([^<]+)<\/Id>/.exec(fs.readFileSync(path.join(root, "manifest.xml"), "utf8"))[1];
 const templates = path.join(repo, "templates");
 const TEMPLATE = fs.existsSync(templates) ? fs.readdirSync(templates).find((n) => /Modul3\.docx$/.test(n)) : undefined;
 
-if (!fs.existsSync(PS)) {
-  console.error("Braucht WSL auf Windows mit Word.");
-  process.exit(2);
-}
+requireWindows();
 if (!TEMPLATE) {
   console.error(`Modul-3-Vorlage fehlt in ${templates}: erst \`rv run gba.R fetch\` in tabellion, oder TABELLION_DIR setzen.`);
   process.exit(2);
 }
+build();
 
-execFileSync("node", [path.join(root, "scripts/build.mjs"), "--e2e", "--base", `http://localhost:${PORT}`], { stdio: "inherit" });
-const dist = path.join(root, "dist-e2e");
-
-const XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
-const EMPTY = {
-  "[Content_Types].xml": `${XML}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`,
-  "_rels/.rels": `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`,
-  "word/document.xml": `${XML}<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p/></w:body></w:document>`,
-};
-
-/** Copies a docx (or makes an empty one) and adds a task pane that opens with it. */
-function withPane(base, file) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zitate-docx-"));
-  if (base) execFileSync("unzip", ["-q", base, "-d", dir]);
-  else for (const [p, s] of Object.entries(EMPTY)) { fs.mkdirSync(path.dirname(path.join(dir, p)), { recursive: true }); fs.writeFileSync(path.join(dir, p), s); }
-  const put = (p, s) => { fs.mkdirSync(path.dirname(path.join(dir, p)), { recursive: true }); fs.writeFileSync(path.join(dir, p), s); };
-  const ct = path.join(dir, "[Content_Types].xml");
-  fs.writeFileSync(ct, fs.readFileSync(ct, "utf8").replace("</Types>", '<Override PartName="/word/webextensions/taskpanes.xml" ContentType="application/vnd.ms-office.webextensiontaskpanes+xml"/><Override PartName="/word/webextensions/webextension1.xml" ContentType="application/vnd.ms-office.webextension+xml"/></Types>'));
-  const rels = path.join(dir, "_rels/.rels");
-  fs.writeFileSync(rels, fs.readFileSync(rels, "utf8").replace("</Relationships>", '<Relationship Id="rIdZitate" Type="http://schemas.microsoft.com/office/2011/relationships/webextensiontaskpanes" Target="word/webextensions/taskpanes.xml"/></Relationships>'));
-  put("word/webextensions/taskpanes.xml", `${XML}<wetp:taskpanes xmlns:wetp="http://schemas.microsoft.com/office/webextensions/taskpanes/2010/11"><wetp:taskpane dockstate="right" visibility="1" width="350" row="0"><wetp:webextensionref xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId1"/></wetp:taskpane></wetp:taskpanes>`);
-  put("word/webextensions/_rels/taskpanes.xml.rels", `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.microsoft.com/office/2011/relationships/webextension" Target="webextension1.xml"/></Relationships>`);
-  put("word/webextensions/webextension1.xml", `${XML}<we:webextension xmlns:we="http://schemas.microsoft.com/office/webextensions/webextension/2010/11" id="{0A1B2C3D-0000-4000-8000-000000000001}"><we:reference id="${ADDIN_ID}" version="1.0.0.0" store="developer" storeType="Registry"/><we:alternateReferences/><we:properties><we:property name="Office.AutoShowTaskpaneWithDocument" value="true"/></we:properties><we:bindings/><we:snapshot xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/></we:webextension>`);
-  fs.rmSync(file, { force: true });
-  execFileSync("zip", ["-X", "-q", "-r", file, "."], { cwd: dir });
-  fs.rmSync(dir, { recursive: true });
-}
-
-const win = execFileSync(PS, ["-NoProfile", "-Command", "$env:TEMP"], { encoding: "utf8" }).trim();
-const winDir = `${win}\\zitate-e2e`;
-const dir = execFileSync("wslpath", ["-u", winDir], { encoding: "utf8" }).trim();
-let log = () => {};
-const server = await serve(dist, PORT, (msg) => log(msg));
-
-/** Opens `docx` in Word with the e2e pane and returns its checks and the saved file. */
+/** Opens `docx` in Word with the e2e pane and returns whether all its checks passed. */
 async function inWord(name, docx, out) {
   console.log(`\n== ${name}`);
-  fs.rmSync(dir, { recursive: true, force: true });
-  fs.mkdirSync(dir, { recursive: true });
-  fs.copyFileSync(path.join(dist, "manifest.xml"), path.join(dir, "manifest.xml"));
-  fs.copyFileSync(path.join(root, "e2e/word.ps1"), path.join(dir, "word.ps1"));
-  fs.copyFileSync(docx, path.join(dir, "in.docx"));
   const checks = [];
-  let done = null;
-  log = (msg) => {
-    if (msg.check) {
-      checks.push(msg);
-      console.log(`${msg.ok ? "ok  " : "FAIL"} ${msg.check}${msg.ok ? "" : "  " + JSON.stringify(msg.detail)}`);
-    } else if (msg.done) {
-      done = msg;
-      fs.writeFileSync(path.join(dir, "done"), "");
-    } else {
-      console.log("    " + JSON.stringify(msg));
-    }
-  };
-  const code = await new Promise((resolve) => {
-    const p = spawn(PS, ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", `${winDir}\\word.ps1`, "-Dir", winDir, "-AddinId", ADDIN_ID], { stdio: "inherit" });
-    p.on("exit", resolve);
+  const r = await session({
+    docx, out, page: "e2e.html",
+    onMessage: (msg) => {
+      if (msg.check) {
+        checks.push(msg);
+        console.log(`${msg.ok ? "ok  " : "FAIL"} ${msg.check}${msg.ok ? "" : "  " + JSON.stringify(msg.detail)}`);
+      } else if (!msg.done) {
+        console.log("    " + JSON.stringify(msg));
+      }
+    },
   });
-  const saved = fs.existsSync(path.join(dir, "out.docx"));
-  if (saved) fs.copyFileSync(path.join(dir, "out.docx"), out);
-  fs.rmSync(dir, { recursive: true, force: true });
-  const ok = code === 0 && saved && done?.ok === true && checks.length > 0;
-  if (!ok) console.log(`FAIL ${name}: ${done?.failed?.join(", ") || (saved ? "kein Abschluss" : "nicht gespeichert")}`);
+  if (r.info) console.log(`    Word ${r.info.version} build ${r.info.build}, open ${r.info.openSeconds?.toFixed(1)} s, pane ${r.info.paneSeconds?.toFixed(1)} s`);
+  const ok = r.code === 0 && r.saved && r.done?.ok === true && checks.length > 0;
+  if (!ok) console.log(`FAIL ${name}: ${r.done?.failed?.join(", ") || (r.saved ? "kein Abschluss" : "nicht gespeichert")}`);
   return ok;
 }
 
@@ -132,7 +78,7 @@ try {
     ok &&= await inWord("C: R-Ergebnis wieder in Word", file("r.docx"), file("c.docx"));
   }
 } finally {
-  server.close();
+  stop();
 }
 console.log(ok ? "\nE2E bestanden." : "\nE2E fehlgeschlagen.");
 process.exit(ok ? 0 : 1);
