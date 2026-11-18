@@ -39,5 +39,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const dir = process.argv[2] ?? "dist";
   const port = +(process.argv[3] ?? 3000);
   await serve(dir, port);
-  console.log(`http://localhost:${port}/ (${dir}/manifest.xml zum Sideloaden)`);
+  console.log(`http://localhost:${port}/ (${dir}/manifest.xml is the file to sideload)`);
 }

@@ -1,6 +1,6 @@
 // Bundles the task pane into dist/ and writes a manifest for one web address.
 //
-//   node scripts/build.mjs [--base https://zitate.example.org] [--out dist] [--e2e]
+//   node scripts/build.mjs [--base https://siglum.example.org] [--out dist] [--e2e]
 import { build } from "esbuild";
 import fs from "node:fs";
 import path from "node:path";
@@ -12,7 +12,7 @@ const arg = (name, def) => {
   return i > 0 ? process.argv[i + 1] : def;
 };
 const e2e = process.argv.includes("--e2e");
-const base = arg("base", process.env.ZITATE_BASE ?? "https://localhost:3000").replace(/\/$/, "");
+const base = arg("base", process.env.SIGLUM_BASE ?? "https://localhost:3000").replace(/\/$/, "");
 const out = path.resolve(root, arg("out", e2e ? "dist-e2e" : "dist"));
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 
@@ -43,4 +43,4 @@ const manifest = fs.readFileSync(path.join(root, "manifest.xml"), "utf8")
   .replaceAll("{{PAGE}}", e2e ? "e2e.html" : "taskpane.html")
   .replaceAll("{{VERSION}}", pkg.version + ".0");
 fs.writeFileSync(path.join(out, "manifest.xml"), manifest);
-console.log(`${path.relative(root, out)}/ für ${base}`);
+console.log(`${path.relative(root, out)}/ for ${base}`);

@@ -1,34 +1,44 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Zitate</title>
+  <title>Siglum</title>
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <link rel="stylesheet" href="taskpane.css">
 </head>
 <body>
+  <!-- The text here is the English default. taskpane.js replaces it from src/messages.js. -->
   <main>
     <div class="search">
-      <input id="q" type="search" placeholder="Autor, Jahr, Titel, Schlüssel, DOI …" autocomplete="off" spellcheck="false" aria-label="Quellen durchsuchen" aria-controls="results">
-      <input id="loc" type="text" placeholder="Seite" aria-label="Seite (optional)" title="Seite, nur bei einer einzelnen Quelle">
+      <input id="q" type="search" placeholder="Author, year, title, key, DOI …" data-i18n-placeholder="search.placeholder" autocomplete="off" spellcheck="false" aria-label="Search sources" data-i18n-aria-label="search.label" aria-controls="results">
+      <input id="supplement" type="text" placeholder="p. 12" data-i18n-placeholder="supplement.placeholder" aria-label="Page or other place in the source (optional)" data-i18n-aria-label="supplement.label" title="Page, chapter or a note, for a single source" data-i18n-title="supplement.title">
     </div>
     <div id="marked" class="marked" hidden></div>
-    <ul id="results" class="results" role="listbox" aria-label="Treffer"></ul>
-    <p id="hint" class="hint">Enter zitiert den markierten Treffer. Strg+Enter merkt ihn für ein Mehrfachzitat vor. Im Text funktioniert auch <code>[@schluessel]</code> mit „Aktualisieren“.</p>
+    <ul id="results" class="results" role="listbox" aria-label="Results" data-i18n-aria-label="results.label"></ul>
+    <p id="hint" class="hint" data-i18n="hint">Enter cites the highlighted result. Ctrl+Enter marks it, to cite several sources together. You can also type @key in the text and click “Refresh”.</p>
     <div class="actions">
-      <button id="bib" type="button">Literaturverzeichnis einfügen</button>
-      <button id="refresh" type="button">Aktualisieren</button>
+      <button id="bib" type="button" data-i18n="bibliography.insert">Insert bibliography</button>
+      <button id="refresh" type="button" data-i18n="refresh">Refresh</button>
     </div>
     <details class="sources">
-      <summary>Quellen hinzufügen</summary>
-      <label class="file">Datei importieren (.bib, .ris, .json)
+      <summary data-i18n="sources.add">Add sources</summary>
+      <label class="file"><span data-i18n="sources.file">Import a file (.bib, .ris, .json)</span>
         <input id="file" type="file" accept=".bib,.ris,.json,.txt" multiple>
       </label>
       <form id="lookup" class="lookup">
-        <input id="ident" type="text" placeholder="DOI oder PMID" aria-label="DOI oder PMID">
-        <button type="submit">Holen</button>
+        <input id="ident" type="text" placeholder="DOI or PMID" data-i18n-placeholder="lookup.placeholder" aria-label="DOI or PMID" data-i18n-aria-label="lookup.placeholder">
+        <button type="submit" data-i18n="lookup.submit">Fetch</button>
       </form>
+    </details>
+    <details class="settings">
+      <summary data-i18n="settings">Settings</summary>
+      <label><span data-i18n="settings.language">Language of this pane</span>
+        <select id="language"></select>
+      </label>
+      <label><span data-i18n="settings.locale">Language of citations and bibliographies</span>
+        <select id="locale"></select>
+      </label>
     </details>
     <p id="status" class="status" role="status" aria-live="polite"></p>
   </main>

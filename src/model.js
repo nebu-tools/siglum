@@ -1,40 +1,56 @@
 // What the document should look like. Works on a plain snapshot of the
 // document, so everything here runs without Word.
 //
-// In the docx a citation is an inline content control tagged `zitat:<id>`, and
-// a reference list is a block content control tagged `literaturverzeichnis`.
-// The cited works and each citation's items live in one custom XML part:
-//
-//   <zitate xmlns="urn:newga:zitate:1">{"quellen": {key: CSL-JSON}, "zitate": {id: [{id, locator?}]}}</zitate>
+// The names below are the stored format. The README documents them, and no
+// other file spells them out.
+
+/** Namespace and root element of the custom XML part that holds the store. */
+export const NS = "urn:siglum:store:1";
+export const ROOT = "siglum";
+/** Tag of a citation's inline content control, followed by the citation's id. */
+export const CITE_PREFIX = "siglum:cite:";
+/** Tag of a bibliography's block content control. */
+export const BIB_TAG = "siglum:bibliography";
+/** A citation's title names its keys after this prefix: `Cite: key1; key2`. */
+export const TITLE_PREFIX = "Cite: ";
+/** Text of a new citation until it is numbered. */
+export const CITE_NEW = "[?]";
+/** Text of a bibliography without citations, unless the caller passes a translation. */
+export const BIB_EMPTY = "No sources cited.";
 
 import { runsText } from "./render.js";
+import { KEY } from "./library.js";
 
-// The namespace keeps the project's former name, newga: documents in use carry it.
-export const NS = "urn:newga:zitate:1";
-export const CITE_PREFIX = "zitat:";
-export const BIB_TAG = "literaturverzeichnis";
-// Text of a new citation until it is numbered, and what Word shows in an emptied one.
-export const CITE_NEW = "[?]";
-export const CITE_PLACEHOLDER = "[leeres Zitat]";
-export const BIB_EMPTY = "Keine Quellen zitiert.";
-const TITLE_PREFIX = "Zitat: ";
-
-export function emptyStore() {
-  return { quellen: {}, zitate: {} };
+/**
+ * The store: `sources` maps a key to a CSL-JSON item, `citations` maps a
+ * citation's id to its items [{id, locator?, label?, suffix?}], and `settings`
+ * holds what belongs to the document: `locale`, the language of its citations
+ * and bibliographies.
+ */
+export function emptyStore(locale) {
+  return { sources: {}, citations: {}, settings: { locale } };
 }
 
 const escapeXml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const unescapeXml = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+const PAYLOAD = new RegExp(`<${ROOT}\\b[^>]*>([\\s\\S]*)</${ROOT}>`);
 
-export function storeToXml(store) {
-  return `<?xml version="1.0" encoding="UTF-8"?><zitate xmlns="${NS}">${escapeXml(JSON.stringify({ quellen: store.quellen, zitate: store.zitate }))}</zitate>`;
+export function storeToXml({ sources, citations, settings }) {
+  return `<?xml version="1.0" encoding="UTF-8"?><${ROOT} xmlns="${NS}">${escapeXml(JSON.stringify({ sources, citations, settings }))}</${ROOT}>`;
 }
 
+const isRecord = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
+
 export function storeFromXml(xml) {
-  const m = /<zitate\b[^>]*>([\s\S]*)<\/zitate>/.exec(xml ?? "");
-  if (!m || !m[1].trim()) return emptyStore();
-  const json = m[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&apos;/g, "'").replace(/&amp;/g, "&");
-  const d = JSON.parse(json);
-  return { quellen: d.quellen ?? {}, zitate: d.zitate ?? {} };
+  const m = PAYLOAD.exec(xml);
+  if (!m) throw new Error("The document's Siglum store is damaged.");
+  let data;
+  try { data = JSON.parse(unescapeXml(m[1])); } catch { data = null; }
+  const { sources, citations, settings } = data ?? {};
+  if (!isRecord(sources) || !isRecord(citations) || !isRecord(settings) || typeof settings.locale !== "string") {
+    throw new Error("The document's Siglum store is damaged.");
+  }
+  return { sources, citations, settings };
 }
 
 export function newId() {
@@ -55,44 +71,169 @@ export function keysFromTitle(title) {
   return keys.length ? keys : null;
 }
 
+// ---- typed markers ------------------------------------------------------------
+//
+// The syntax is Typst's: `@key` cites a source, `@key[p. 12]` adds a
+// supplement, and markers with only spaces between them are one citation.
+
+// What may come right before the "@": the start of the paragraph, white
+// space, an opening parenthesis, bracket or brace, a quotation mark, a dash, a
+// comma or a semicolon. So "name@example.org" and "example.org/@name" are text.
+const BEFORE = /[\s(\[\{"'“”„‘’‚«»‹›–—,;]/u;
+// The "@" and its key, which is not cut short: `@a@b` is no marker, and
+// neither is a shortened key. A combining mark belongs to the key it follows,
+// and a key never ends before a joiner, so a marker never ends inside a
+// character as the reader sees it.
+const MARKER = new RegExp(String.raw`@(${KEY})(?![\p{L}\p{M}\p{N}_\-@\u200c\u200d])`, "uy");
+// Only spaces and no-break spaces join markers.
+const GAP = /[  ]+/y;
+// A supplement holds no tab, line break or other control character.
+const CONTROL = /\p{Cc}/u;
+const ATTACHES = /[\p{M}\u200c\u200d]/u;
+
 /**
- * A typed citation: `[@key]`, `[@a; @b]` or `[@key, S. 12]`. Returns the items
- * or null when the text is not a citation.
+ * The end of the balanced brackets that open at `i`, or -1. Brackets inside
+ * count in pairs, as in Typst: `[outer[inner]]` is one supplement.
  */
-export function parseMarker(text) {
-  const m = /^\[\s*(@[\s\S]*)\]$/.exec(text.trim());
-  if (!m) return null;
-  const items = [];
-  for (const part of m[1].split(";")) {
-    const p = /^\s*@([A-Za-z0-9_:.\-]+)\s*(?:,\s*(.+?))?\s*$/.exec(part);
-    if (!p) return null;
-    const loc = p[2]?.replace(/^(S\.|pp?\.|Seite|page)\s*/i, "").trim();
-    items.push(loc ? { id: p[1], locator: loc, label: "page" } : { id: p[1] });
+function closing(text, i) {
+  let depth = 0;
+  for (let j = i; j < text.length; j++) {
+    const c = text[j];
+    if (CONTROL.test(c)) return -1;
+    if (c === "[") depth++;
+    else if (c === "]" && --depth === 0) return ATTACHES.test(text[j + 1] ?? "") ? -1 : j + 1;
   }
-  return items;
+  return -1;
 }
 
-const norm = (s) => String(s ?? "").replace(/ /g, " ").replace(/[ \t]+/g, " ").trim();
+function markerAt(text, i) {
+  MARKER.lastIndex = i;
+  const m = MARKER.exec(text);
+  if (!m) return null;
+  const id = m[1].normalize("NFC");
+  const end = text[MARKER.lastIndex] === "[" ? closing(text, MARKER.lastIndex) : -1;
+  if (end === -1) return { item: { id }, end: MARKER.lastIndex };
+  return { item: { id, ...parseSupplement(text.slice(MARKER.lastIndex + 1, end - 1)) }, end };
+}
+
+/**
+ * Whether a content control that reads `control` can share a character with a
+ * marker group that reads `group`: one holds the other, or one ends as the
+ * other begins. Only then is it worth asking Word where the two ranges are.
+ */
+export function mayTouch(group, control) {
+  if (group.includes(control) || control.includes(group)) return true;
+  const n = Math.min(group.length, control.length);
+  for (let k = 1; k < n; k++) {
+    if (control.endsWith(group.slice(0, k)) || group.endsWith(control.slice(0, k))) return true;
+  }
+  return false;
+}
+
+/**
+ * The markers in one paragraph's text, adjacent ones merged into groups:
+ * [{start, end, text, items}]. `text` is the group as typed, and the keys in
+ * `items` are in Unicode's composed form (NFC), as the library stores them.
+ */
+export function findMarkers(text) {
+  const groups = [];
+  let i = 0;
+  while ((i = text.indexOf("@", i)) !== -1) {
+    const first = i === 0 || BEFORE.test(text[i - 1]) ? markerAt(text, i) : null;
+    if (!first) { i++; continue; }
+    const items = [first.item];
+    const seen = new Set([JSON.stringify(first.item)]);
+    let end = first.end;
+    for (;;) {
+      GAP.lastIndex = end;
+      const next = GAP.test(text) ? markerAt(text, GAP.lastIndex) : null;
+      if (!next) break;
+      // A source cited twice in a row, without a supplement, counts once.
+      const same = JSON.stringify(next.item);
+      if (!seen.has(same)) { seen.add(same); items.push(next.item); }
+      end = next.end;
+    }
+    groups.push({ start: i, end, text: text.slice(i, end), items });
+    i = end;
+  }
+  return groups;
+}
+
+// CSL locator labels and the abbreviations people type for them, English and German.
+const LABELS = {
+  page: ["p", "pp", "pg", "page", "pages", "s", "seite", "seiten"],
+  chapter: ["ch", "chap", "chapter", "chapters", "kap", "kapitel"],
+  section: ["sec", "sect", "section", "sections", "§", "§§", "abschn", "abschnitt", "abschnitte"],
+  paragraph: ["para", "paras", "paragraph", "paragraphs", "¶", "abs", "absatz"],
+  figure: ["fig", "figs", "figure", "figures", "abb", "abbildung"],
+  volume: ["vol", "vols", "volume", "volumes", "bd", "band"],
+  line: ["l", "ll", "line", "lines", "z", "zeile", "zeilen"],
+  note: ["n", "nn", "note", "notes", "anm", "anmerkung"],
+  column: ["col", "cols", "column", "columns", "sp", "spalte", "spalten"],
+};
+const LABEL_OF = new Map(Object.entries(LABELS).flatMap(([label, words]) => words.map((w) => [w, label])));
+const ARABIC = String.raw`\d+[a-z]?`;
+const ROMAN = String.raw`(?=[ivxlcdm])m*(?:cm|cd|d?c{0,3})(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})`;
+const numbers = (n) => new RegExp(String.raw`^(?:${n})(?:\s*[-–—,&]\s*(?:${n}))*(?:\s?ff?\.?)?$`, "i");
+const BARE = numbers(ARABIC);
+const LABELLED = numbers(`${ARABIC}|${ROMAN}`);
+
+/**
+ * Reads a supplement, the text in `@key[…]`. A locator such as "p. 12",
+ * "pp. 12-15", "ch. 3", "S. 12" or "12" comes back as {locator, label} for the
+ * CSL processor. Any other text comes back as {suffix}, and an empty one as {}.
+ */
+export function parseSupplement(text) {
+  const t = String(text ?? "").replace(/\u00a0/g, " ").trim();
+  if (!t) return {};
+  const dashes = (s) => s.replace(/\s*[–—-]\s*/g, "-");
+  if (BARE.test(t)) return { locator: dashes(t), label: "page" };
+  const m = /^([\p{L}§¶]+)\.?\s*(.+)$/u.exec(t);
+  const label = m && LABEL_OF.get(m[1].toLowerCase());
+  if (label && LABELLED.test(m[2])) return { locator: dashes(m[2]), label };
+  return { suffix: t };
+}
+
+// ---- planning an update -------------------------------------------------------
+
+const norm = (s) => String(s ?? "").replace(/\u00a0/g, " ").replace(/[ \t]+/g, " ").trim();
 const lines = (s) => String(s ?? "").split(/[\r\n\v]+/).map(norm).filter(Boolean);
 const isEmpty = (s) => norm(s) === "";
 
 /**
- * Plans an update. `controls` are the citations and reference lists in document
+ * Decides which citations each bibliography lists: [{citations, bibs}], each
+ * numbered on its own. A bibliography takes the citations since the one before
+ * it, and citations after the last one belong to it, for example in
+ * appendices. This is the one place that knows the rule, so a document
+ * setting for a single shared bibliography only has to change this function.
+ */
+function sections(sequence) {
+  const out = [{ citations: [], bibs: [] }];
+  for (const x of sequence) {
+    if (x.bib == null) { out[out.length - 1].citations.push(x); continue; }
+    out[out.length - 1].bibs.push(x.bib);
+    out.push({ citations: [], bibs: [] });
+  }
+  const tail = out.pop();
+  if (out.length) out[out.length - 1].citations.push(...tail.citations);
+  else out.push(tail);
+  return out;
+}
+
+/**
+ * Plans an update. `controls` are the citations and bibliographies in document
  * order: {kind: "cite", tag, title, current, original} or {kind: "bib", current}.
  * `current` and `original` are the texts with tracked changes accepted and
- * rejected, "" while Word shows the placeholder. Returns what to write, by
- * position in `controls`.
+ * rejected, "" while Word shows the placeholder. `locale` is the language of
+ * citations and bibliographies, and `bibEmpty` the text of a bibliography
+ * without citations. Returns what to write, by position in `controls`.
  */
-export function plan(controls, store, renderer) {
-  const sections = [{ citations: [], bib: null }];
+export function plan(controls, store, renderer, { locale = "en-US", bibEmpty = BIB_EMPTY } = {}) {
+  const sequence = [];
   const out = { citations: [], bibs: [], removes: [], unknown: [], pending: 0, store: null };
-  let zitate = store.zitate;
+  let citations = store.citations;
   controls.forEach((c, index) => {
-    if (c.kind === "bib") {
-      sections[sections.length - 1].bib = index;
-      sections.push({ citations: [], bib: null });
-      return;
-    }
+    if (c.kind === "bib") { sequence.push({ bib: index }); return; }
     // Emptied by hand: the control is a leftover. A tracked deletion waits for review.
     if (isEmpty(c.current)) {
       if (isEmpty(c.original)) out.removes.push(index);
@@ -100,42 +241,39 @@ export function plan(controls, store, renderer) {
       return;
     }
     const id = c.tag.slice(CITE_PREFIX.length);
-    let items = zitate[id];
+    let items = citations[id];
     if (!items) {
       // Pasted from another document: the title still names the keys.
       const keys = keysFromTitle(c.title);
-      if (keys && keys.every((k) => store.quellen[k])) {
+      if (keys && keys.every((k) => store.sources[k])) {
         items = keys.map((k) => ({ id: k }));
-        zitate = { ...zitate, [id]: items };
+        citations = { ...citations, [id]: items };
       }
     }
-    const missing = items ? items.filter((x) => !store.quellen[x.id]).map((x) => x.id) : keysFromTitle(c.title) ?? [];
+    const missing = items ? items.filter((x) => !store.sources[x.id]).map((x) => x.id) : keysFromTitle(c.title) ?? [];
     if (!items || missing.length) {
       out.unknown.push({ index, keys: missing, text: norm(c.current) });
       return;
     }
-    sections[sections.length - 1].citations.push({ index, items, current: c.current });
+    sequence.push({ index, items, current: c.current });
   });
-  if (zitate !== store.zitate) out.store = { ...store, zitate };
+  if (citations !== store.citations) out.store = { ...store, citations };
 
-  // Citations behind the last reference list belong to it, e.g. in appendices.
-  const last = sections.pop();
-  if (sections.length) sections[sections.length - 1].citations.push(...last.citations);
-  else sections.push(last);
-
-  const rendered = renderer.render(sections, store.quellen);
-  sections.forEach((sec, s) => {
+  const secs = sections(sequence);
+  const rendered = renderer.render(secs, store.sources, locale);
+  secs.forEach((sec, s) => {
     sec.citations.forEach((c, i) => {
       const runs = rendered[s].citations[i];
       if (norm(runsText(runs)) !== norm(c.current)) out.citations.push({ index: c.index, runs });
     });
-    if (sec.bib == null) return;
-    const entries = rendered[s].entries.length ? rendered[s].entries : [[{ text: BIB_EMPTY }]];
+    const entries = rendered[s].entries.length ? rendered[s].entries : [[{ text: bibEmpty }]];
     const want = entries.map((e) => norm(runsText(e)));
-    const have = lines(controls[sec.bib].current);
-    if (want.join("\n") !== have.join("\n")) out.bibs.push({ index: sec.bib, entries });
+    for (const bib of sec.bibs) {
+      const have = lines(controls[bib].current);
+      if (want.join("\n") !== have.join("\n")) out.bibs.push({ index: bib, entries });
+    }
   });
-  out.sections = sections.length;
-  out.cited = sections.reduce((n, s) => n + s.citations.length, 0);
+  out.sections = secs.length;
+  out.cited = secs.reduce((n, s) => n + s.citations.length, 0);
   return out;
 }

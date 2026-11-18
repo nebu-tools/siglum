@@ -1,4 +1,4 @@
-// Formats citations and reference lists with citeproc-js. A run is
+// Formats citations and bibliographies with citeproc-js. A run is
 // {text, italic?, bold?, superscript?, subscript?, smallCaps?}.
 
 import CSL from "citeproc";
@@ -53,7 +53,7 @@ function decode(s) {
 export const runsText = (runs) => runs.map((r) => r.text).join("");
 
 /**
- * One reference list entry: number, tab, text. citeproc puts the number in
+ * One bibliography entry: number, tab, text. citeproc puts the number in
  * csl-left-margin when the style aligns it; other styles give plain text.
  */
 function entryRuns(html) {
@@ -63,26 +63,39 @@ function entryRuns(html) {
   return htmlToRuns(html.replace(/<\/?div[^>]*>/g, ""));
 }
 
+/** The bundled locale for a language tag: the tag itself, one of the same language, or en-US. */
+export function resolveLocale(tag, available) {
+  const want = String(tag ?? "").replace("_", "-").toLowerCase();
+  const lang = want.split("-")[0];
+  return available.find((l) => l.toLowerCase() === want)
+    ?? available.find((l) => l.toLowerCase().split("-")[0] === lang)
+    ?? (available.includes("en-US") ? "en-US" : available[0]);
+}
+
 /**
- * Creates a renderer for one style. `locales` maps a language to locale XML.
- * render(sections, library) takes [{citations: [{items: [{id, locator?, label?}]}]}]
- * and returns, per section, the runs of each citation and of each entry.
+ * Creates a renderer for one style. `locales` maps a language tag to locale XML.
+ * render(sections, library, lang) takes [{citations: [{items: [{id, locator?, label?, suffix?}]}]}]
+ * and returns, per section, the runs of each citation and of each entry, in
+ * the bundled locale that fits `lang`.
  */
-export function createRenderer({ style, locales, lang = "de-DE" }) {
+export function createRenderer({ style, locales }) {
+  const available = Object.keys(locales);
+  const resolve = (tag) => resolveLocale(tag, available);
+  const sys = (library) => ({
+    retrieveLocale: (l) => locales[resolve(l)],
+    retrieveItem: (id) => library[id],
+  });
   return {
-    render(sections, library) {
-      const sys = {
-        retrieveLocale: (l) => locales[l] ?? locales[Object.keys(locales).find((k) => k.startsWith(l.slice(0, 2)))] ?? locales["en-US"],
-        retrieveItem: (id) => library[id],
-      };
+    locales: available,
+    resolve,
+    render(sections, library, lang = "en-US") {
       return sections.map((sec) => {
         if (!sec.citations.length) return { citations: [], entries: [] };
-        // A fresh engine per section restarts the numbering, as each G-BA
-        // reference list counts from 1.
-        const engine = new CSL.Engine(sys, style, lang, true);
+        // A fresh engine per section restarts the numbering.
+        const engine = new CSL.Engine(sys(library), style, resolve(lang), true);
         const cits = sec.citations.map((c, i) => ({
           citationID: "c" + i,
-          citationItems: c.items.map((x) => ({ id: x.id, ...(x.locator ? { locator: x.locator, label: x.label ?? "page" } : {}) })),
+          citationItems: c.items.map(citationItem),
           properties: { noteIndex: 0 },
         }));
         const res = engine.rebuildProcessorState(cits, "html");
@@ -95,4 +108,11 @@ export function createRenderer({ style, locales, lang = "de-DE" }) {
       });
     },
   };
+}
+
+function citationItem(x) {
+  const item = { id: x.id };
+  if (x.locator) { item.locator = x.locator; item.label = x.label; }
+  if (x.suffix) item.suffix = ", " + x.suffix;
+  return item;
 }

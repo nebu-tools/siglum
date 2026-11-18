@@ -1,6 +1,8 @@
 // Fetches a record by DOI (doi.org, CSL-JSON) or PubMed id (NCBI E-utilities).
 // Both answer browsers from any origin.
 
+import { UserError } from "./messages.js";
+
 const VARS = new Set([
   "type", "title", "title-short", "container-title", "container-title-short", "collection-title", "author", "editor",
   "issued", "accessed", "volume", "issue", "page", "number", "edition", "publisher", "publisher-place", "DOI", "PMID",
@@ -70,17 +72,17 @@ export function fromEsummary(r) {
 
 export async function lookup(s, fetchImpl = fetch) {
   const id = parseIdent(s);
-  if (!id) throw new Error("Weder DOI noch PMID: " + s);
+  if (!id) throw new UserError("error.noIdentifier", { text: s });
   if (id.pmid) {
     const res = await fetchImpl(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&retmode=json&id=${id.pmid}`);
     const r = res.ok ? (await res.json()).result?.[id.pmid] : null;
-    if (!r || r.error) throw new Error(`PMID nicht gefunden (${r?.error ?? res.status})`);
+    if (!r || r.error) throw new UserError("error.pmidNotFound", { reason: r?.error ?? res.status });
     return fromEsummary(r);
   }
   const res = await fetchImpl("https://doi.org/" + encodeURIComponent(id.doi).replace(/%2F/g, "/"), {
     headers: { Accept: "application/vnd.citationstyles.csl+json" },
   });
-  if (!res.ok) throw new Error(`DOI nicht gefunden (${res.status})`);
+  if (!res.ok) throw new UserError("error.doiNotFound", { reason: res.status });
   const data = await res.json();
   return cleanCsl(Array.isArray(data) ? data[0] : data);
 }

@@ -1,27 +1,30 @@
 // Reads and writes the document through Office.js. All decisions are in model.js.
+//
+// Every operation takes a session: {renderer, locale}. `locale` is the
+// language a new document gets for its citations and bibliographies.
 /* global Word */
 
 import {
-  NS, CITE_PREFIX, BIB_TAG, CITE_NEW, CITE_PLACEHOLDER, BIB_EMPTY,
-  emptyStore, storeToXml, storeFromXml, newId, citeTitle, parseMarker, plan,
+  NS, CITE_PREFIX, BIB_TAG, CITE_NEW,
+  emptyStore, storeToXml, storeFromXml, newId, citeTitle, findMarkers, mayTouch, plan,
 } from "./model.js";
+import { documentText, UserError } from "./messages.js";
 
-// Hanging indent of reference list entries, in points (1 cm).
+// Hanging indent of bibliography entries, in points (1 cm).
 const HANG = 28.35;
 
 const isCite = (cc) => cc.tag?.startsWith(CITE_PREFIX);
+const isOurs = (cc) => isCite(cc) || cc.tag === BIB_TAG;
 
-export async function loadStore(context) {
-  const parts = context.document.customXmlParts.getByNamespace(NS);
-  parts.load("items");
-  await context.sync();
-  if (!parts.items.length) return emptyStore();
-  const xml = parts.items[0].getXml();
-  await context.sync();
-  return storeFromXml(xml.value);
+/**
+ * The content controls that can hold citations and bibliographies. Citations
+ * in footnotes and endnotes would be added here.
+ */
+function citationControls(context) {
+  return context.document.body.contentControls;
 }
 
-export async function saveStore(context, store) {
+async function saveStore(context, store) {
   const parts = context.document.customXmlParts.getByNamespace(NS);
   parts.load("items");
   await context.sync();
@@ -30,12 +33,26 @@ export async function saveStore(context, store) {
   await context.sync();
 }
 
-/** Citations and reference lists in document order, with their texts. */
+/**
+ * The document's store. Every operation starts here. A document without one
+ * gets an empty store in the session's language; the next save keeps it.
+ */
+async function openStore(context, session) {
+  const parts = context.document.customXmlParts.getByNamespace(NS);
+  parts.load("items");
+  await context.sync();
+  if (!parts.items.length) return emptyStore(session.renderer.resolve(session.locale));
+  const xml = parts.items[0].getXml();
+  await context.sync();
+  return storeFromXml(xml.value);
+}
+
+/** Citations and bibliographies in document order, with their texts. */
 async function snapshot(context) {
-  const all = context.document.body.contentControls;
+  const all = citationControls(context);
   all.load("items/tag,items/title,items/id,items/placeholderText");
   await context.sync();
-  const ccs = all.items.filter((cc) => isCite(cc) || cc.tag === BIB_TAG);
+  const ccs = all.items.filter(isOurs);
   const cur = ccs.map((cc) => cc.getReviewedText("Current"));
   const orig = ccs.map((cc) => (isCite(cc) ? cc.getReviewedText("Original") : null));
   await context.sync();
@@ -70,7 +87,7 @@ function writeBibliography(cc, entries) {
     let p;
     let rest = runs;
     if (i === 0) {
-      // Replacing the whole content leaves one paragraph with the list's style.
+      // Replacing the whole content leaves one paragraph with the bibliography's style.
       setFont(cc.insertText(runs[0].text, "Replace"), runs[0]);
       p = cc.paragraphs.getFirst();
       rest = runs.slice(1);
@@ -100,15 +117,16 @@ async function withTracking(context, mode, fn) {
 }
 
 /**
- * Brings numbers and reference lists up to date. Citations in `fresh` (Word
+ * Brings numbers and bibliographies up to date. Citations in `fresh` (Word
  * content control ids) were just added by the user and follow the document's
  * track-changes mode. Everything else is derived and is written untracked, so
  * renumbering does not bury the real changes in review.
  */
-export async function refresh(context, renderer, { fresh = [], store } = {}) {
-  store = store ?? await loadStore(context);
+export async function refresh(context, session, { fresh = [], store } = {}) {
+  store = store ?? await openStore(context, session);
   const { ccs, controls } = await snapshot(context);
-  const p = plan(controls, store, renderer);
+  const { locale } = store.settings;
+  const p = plan(controls, store, session.renderer, { locale, bibEmpty: documentText(locale).bibEmpty });
   if (p.store) await saveStore(context, p.store);
   const own = p.citations.filter((c) => fresh.includes(ccs[c.index].id));
   for (const c of own) writeCitation(ccs[c.index], c.runs);
@@ -125,10 +143,10 @@ export async function refresh(context, renderer, { fresh = [], store } = {}) {
   return { ...p, store: p.store ?? store };
 }
 
-function tagCitation(cc, id, items) {
+function tagCitation(cc, id, items, text) {
   cc.tag = CITE_PREFIX + id;
   cc.title = citeTitle(items);
-  cc.placeholderText = CITE_PLACEHOLDER;
+  cc.placeholderText = text.citePlaceholder;
   cc.appearance = "BoundingBox";
 }
 
@@ -137,8 +155,8 @@ function tagCitation(cc, id, items) {
  * so a click on [3] and a pick gives [3,4]. With track changes on they become a
  * citation of their own right after it, which review can reject on its own.
  */
-export async function insertCitation(context, renderer, items) {
-  const store = await loadStore(context);
+export async function insertCitation(context, session, items) {
+  const store = await openStore(context, session);
   const sel = context.document.getSelection();
   const host = sel.parentContentControlOrNullObject;
   host.load("tag,title,id");
@@ -148,40 +166,41 @@ export async function insertCitation(context, renderer, items) {
   let all = items;
   const inCite = !host.isNullObject && isCite(host);
   if (inCite && context.document.changeTrackingMode === "Off") {
-    const before = store.zitate[host.tag.slice(CITE_PREFIX.length)] ?? [];
+    const before = store.citations[host.tag.slice(CITE_PREFIX.length)] ?? [];
     all = [...before, ...items.filter((x) => !before.some((b) => b.id === x.id))];
     cc = host;
   } else if (inCite) {
     cc = host.getRange("After").insertText(CITE_NEW, "Replace").insertContentControl();
   } else if (!host.isNullObject && host.tag === BIB_TAG) {
-    throw new Error("Der Cursor steht im Literaturverzeichnis.");
+    throw new UserError("error.inBibliography");
   } else {
     cc = sel.insertText(CITE_NEW, "End").insertContentControl();
   }
   // A new id each time, so copies of a citation elsewhere keep their items.
   const id = newId();
-  tagCitation(cc, id, all);
+  tagCitation(cc, id, all, documentText(store.settings.locale));
   cc.load("id");
   await context.sync();
-  const next = { ...store, zitate: { ...store.zitate, [id]: all } };
+  const next = { ...store, citations: { ...store.citations, [id]: all } };
   await saveStore(context, next);
   cc.getRange("After").select("End");
   await context.sync();
-  return refresh(context, renderer, { fresh: [cc.id], store: next });
+  return refresh(context, session, { fresh: [cc.id], store: next });
 }
 
 /**
- * Adds a reference list for the citations since the previous one. An empty or
- * fully selected paragraph, such as the template's answer placeholder, becomes
- * the list; otherwise it goes below the cursor's paragraph. Like its entries,
- * the list is written untracked.
+ * Adds a bibliography for the citations since the previous one. An empty or
+ * fully selected paragraph, such as a placeholder in a template, becomes the
+ * bibliography; otherwise it goes below the cursor's paragraph. Like its
+ * entries, the bibliography is written untracked.
  */
-export async function insertBibliography(context, renderer) {
-  await withTracking(context, "Off", () => addList(context));
-  return refresh(context, renderer);
+export async function insertBibliography(context, session) {
+  const store = await openStore(context, session);
+  await withTracking(context, "Off", () => addBibliography(context, documentText(store.settings.locale)));
+  return refresh(context, session, { store });
 }
 
-async function addList(context) {
+async function addBibliography(context, text) {
   const sel = context.document.getSelection();
   const host = sel.parentContentControlOrNullObject;
   host.load("tag");
@@ -189,7 +208,7 @@ async function addList(context) {
   const para = sel.paragraphs.getFirst();
   para.load("text,styleBuiltIn");
   await context.sync();
-  if (!host.isNullObject && (isCite(host) || host.tag === BIB_TAG)) throw new Error("Der Cursor steht in einem Zitat oder Literaturverzeichnis.");
+  if (!host.isNullObject && isOurs(host)) throw new UserError("error.inControl");
   const whole = !para.text.trim() || sel.text.trim() === para.text.trim();
   const target = whole ? para : para.insertParagraph("", "After");
   if (!whole && /^Heading/.test(para.styleBuiltIn)) target.styleBuiltIn = Word.Style.normal;
@@ -197,58 +216,180 @@ async function addList(context) {
   await context.sync();
   // The entries bring their own numbers.
   if (target.isListItem) target.detachFromList();
-  target.insertText(BIB_EMPTY, "Replace");
+  target.insertText(text.bibEmpty, "Replace");
   const cc = target.insertContentControl();
   cc.tag = BIB_TAG;
-  cc.title = "Literaturverzeichnis";
+  cc.title = text.bibTitle;
   cc.appearance = "BoundingBox";
   await context.sync();
 }
 
+// Word's literal search takes at most this many characters, and "^" starts a
+// special code such as "^p" in it, so a caret is searched as "^^".
+const SEARCH_MAX = 255;
+const searchText = (s) => s.replace(/\^/g, "^^");
+// Where a search text may be cut: not inside a surrogate pair, and not before
+// a combining mark or a joiner, which belong to the character before them.
+const ATTACHES = /[\p{M}\u200c\u200d]|[\udc00-\udfff]/u;
+
+/** The longest piece of `text` from its start (or its end) that one search can take. */
+function piece(text, fromEnd) {
+  let n = 0;
+  let len = 0;
+  for (const c of fromEnd ? [...text].reverse() : text) {
+    // Word counts UTF-16 units, and the caret is searched doubled.
+    len += c === "^" ? 2 : c.length;
+    if (len > SEARCH_MAX) break;
+    n += c.length;
+  }
+  if (fromEnd) { while (n > 0 && ATTACHES.test(text[text.length - n])) n--; return text.slice(text.length - n); }
+  while (n > 0 && ATTACHES.test(text[n])) n--;
+  return text.slice(0, n);
+}
+
+// How a range compares with a content control's range: inside it, or clear of it.
+// Any other relation means that the two overlap.
+const INSIDE = new Set(["Inside", "InsideStart", "InsideEnd", "Equal"]);
+const APART = new Set(["Before", "After", "AdjacentBefore", "AdjacentAfter", "Unrelated"]);
+
+/** Where `needle` starts in `text`, without overlaps and in order, as Word's search reports it. */
+function occurrences(text, needle) {
+  const at = new Map();
+  for (let i = text.indexOf(needle); i !== -1; i = text.indexOf(needle, i + needle.length)) at.set(i, at.size);
+  return at;
+}
+
 /**
- * Turns typed `[@key]` markers into citations. Markers with unknown keys stay
- * as text and come back in `unknown`.
+ * Finds the typed `@key` markers: [{range, items, text}], and in `lost` the
+ * texts of markers that the search could not pin down.
+ *
+ * Word's wildcard search cannot do this. There "@" is an operator, and a
+ * pattern cannot say "at the start of a word". So a plain search first tells
+ * whether the document has an "@" at all. If it has, model.findMarkers reads
+ * each paragraph's text, and a plain search inside the paragraph gives each
+ * group's range: one search for the group's text, or for a group longer than
+ * a search can be, one for its start and one for its end and the range
+ * between them. Each distinct text is searched once per paragraph, and the
+ * group is the hit at its place among the text's occurrences. A group whose
+ * range does not read exactly as the paragraph's text does is lost, and so is
+ * one that reaches into or over a citation or a bibliography, so nothing is
+ * replaced on a guess. All this takes four syncs.
  */
-export async function convertMarkers(context, renderer) {
-  const store = await loadStore(context);
-  const found = context.document.body.search("\\[@*\\]", { matchWildcards: true });
-  found.load("items/text");
+export async function locateMarkers(context) {
+  const body = context.document.body;
+  const probe = body.search("@", { matchCase: true });
+  probe.load("items");
   await context.sync();
-  const zitate = { ...store.zitate };
+  if (!probe.items.length) return { markers: [], lost: [] };
+
+  const paragraphs = body.paragraphs;
+  paragraphs.load("items/text");
+  const controls = citationControls(context);
+  controls.load("items/tag,items/text");
+  await context.sync();
+  const lost = [];
+  const groups = [];
+  for (const p of paragraphs.items) {
+    if (!p.text.includes("@")) continue;
+    const searches = new Map();
+    const find = (text, at) => {
+      let s = searches.get(text);
+      if (!s) {
+        s = { at: occurrences(p.text, text), hits: p.search(searchText(text), { matchCase: true }) };
+        s.hits.load("items");
+        searches.set(text, s);
+      }
+      return { s, nth: s.at.get(at) };
+    };
+    for (const g of findMarkers(p.text)) {
+      if (searchText(g.text).length <= SEARCH_MAX) { groups.push({ g, ends: [find(g.text, g.start)] }); continue; }
+      const head = piece(g.text, false);
+      const tail = piece(g.text, true);
+      if (!head || !tail) { lost.push(g.text); continue; }
+      groups.push({ g, ends: [find(head, g.start), find(tail, g.end - tail.length)] });
+    }
+  }
+  // A marker must not touch a citation or a bibliography, at any depth. Word
+  // compares a group's range only with the controls whose text can meet it.
+  const ours = controls.items.filter(isOurs);
+  const whole = new Map();
+  for (const group of groups) {
+    group.near = ours.filter((cc) => mayTouch(group.g.text, cc.text));
+    for (const cc of group.near) if (!whole.has(cc)) whole.set(cc, cc.getRange("Whole"));
+  }
+  await context.sync();
+
+  const found = [];
+  for (const { g, ends, near } of groups) {
+    // The paragraph's text and the search must agree on where the marker is.
+    if (ends.some(({ s, nth }) => nth === undefined || s.hits.items.length !== s.at.size)) { lost.push(g.text); continue; }
+    const [head, tail] = ends.map(({ s, nth }) => s.hits.items[nth]);
+    const range = tail ? head.expandTo(tail) : head;
+    range.load("text");
+    found.push({ range, g, inside: near.map((cc) => range.compareLocationWith(whole.get(cc))) });
+  }
+  await context.sync();
+  const markers = [];
+  for (const { range, g, inside } of found) {
+    if (range.text !== g.text) lost.push(g.text);
+    else if (inside.every((x) => APART.has(x.value))) markers.push({ range, items: g.items, text: g.text });
+    else if (!inside.some((x) => INSIDE.has(x.value))) lost.push(g.text);
+  }
+  return { markers, lost };
+}
+/**
+ * Turns typed `@key` markers into citations and brings the document up to
+ * date. A marker with an unknown key stays as text and comes back in
+ * `unknownMarkers`.
+ */
+export async function convertMarkers(context, session) {
+  const store = await openStore(context, session);
+  const { markers, lost } = await locateMarkers(context);
+  const text = documentText(store.settings.locale);
+  const citations = { ...store.citations };
   const made = [];
   const unknown = [];
-  for (const r of found.items) {
-    const items = parseMarker(r.text);
-    if (!items) continue;
-    const missing = items.filter((x) => !store.quellen[x.id]).map((x) => x.id);
-    if (missing.length) { unknown.push({ text: r.text, keys: missing }); continue; }
+  for (const m of markers) {
+    const missing = m.items.filter((x) => !store.sources[x.id]).map((x) => x.id);
+    if (missing.length) { unknown.push({ text: m.text, keys: missing }); continue; }
     const id = newId();
-    const cc = r.insertText(CITE_NEW, "Replace").insertContentControl();
-    tagCitation(cc, id, items);
+    const cc = m.range.insertText(CITE_NEW, "Replace").insertContentControl();
+    tagCitation(cc, id, m.items, text);
     cc.load("id");
-    zitate[id] = items;
+    citations[id] = m.items;
     made.push(cc);
   }
   await context.sync();
-  const next = { ...store, zitate };
+  const next = { ...store, citations };
   if (made.length) await saveStore(context, next);
-  const res = await refresh(context, renderer, { fresh: made.map((cc) => cc.id), store: next });
-  return { ...res, converted: made.length, unknownMarkers: unknown };
+  const res = await refresh(context, session, { fresh: made.map((cc) => cc.id), store: next });
+  return { ...res, converted: made.length, unknownMarkers: unknown, lostMarkers: lost };
 }
 
-/** Adds works to the document's library. */
-export async function addSources(context, merge) {
-  const store = await loadStore(context);
-  const r = merge(store.quellen);
-  const next = { ...store, quellen: r.library };
+/** Adds sources to the document. `merge(sources)` returns {library, added, updated}. */
+export async function addSources(context, session, merge) {
+  const store = await openStore(context, session);
+  const r = merge(store.sources);
+  const next = { ...store, sources: r.library };
   await saveStore(context, next);
   return { ...r, store: next };
 }
 
-/** A cheap fingerprint of the citations' order, to notice deletions and pastes. */
+/** Sets the language of the document's citations and bibliographies. */
+export async function setLocale(context, session, locale) {
+  const store = await openStore(context, session);
+  const next = { ...store, settings: { ...store.settings, locale: session.renderer.resolve(locale) } };
+  await saveStore(context, next);
+  return refresh(context, session, { store: next });
+}
+
+/**
+ * A cheap fingerprint of the content controls' order, to notice deletions and
+ * pastes. It takes every tag as it is, so it needs no knowledge of formats.
+ */
 export async function signature(context) {
-  const all = context.document.body.contentControls;
+  const all = citationControls(context);
   all.load("items/tag");
   await context.sync();
-  return all.items.filter((cc) => isCite(cc) || cc.tag === BIB_TAG).map((cc) => cc.tag).join("|");
+  return all.items.map((cc) => cc.tag).join("|");
 }

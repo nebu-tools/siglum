@@ -16,14 +16,14 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); }
 main { display: flex; flex-direction: column; gap: 8px; padding: 10px; height: 100vh; }
-input, button { font: inherit; color: inherit; }
+input, button, select { font: inherit; color: inherit; }
 input[type="search"], input[type="text"] {
   border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; background: var(--bg); min-width: 0;
 }
-input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .search { display: flex; gap: 6px; }
 .search #q { flex: 1; }
-.search #loc { width: 64px; }
+.search #supplement { width: 72px; }
 .marked { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--accent-bg); border-radius: 10px; padding: 1px 8px; font-size: 12px; }
 .chip button { border: 0; background: none; cursor: pointer; padding: 0; color: var(--muted); }
@@ -43,8 +43,10 @@ button { border: 1px solid var(--line); background: var(--bg); border-radius: 4p
 button:hover { background: var(--hover); }
 button:disabled { opacity: .5; cursor: default; }
 #bib { background: var(--accent); border-color: var(--accent); color: #fff; }
-.sources summary { cursor: pointer; color: var(--accent); }
-.sources > * + * { margin-top: 6px; }
+.sources summary, .settings summary { cursor: pointer; color: var(--accent); }
+.sources > * + *, .settings > * + * { margin-top: 6px; }
+.settings label { display: flex; flex-direction: column; gap: 4px; }
+.settings select { border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; background: var(--bg); }
 .file { display: flex; flex-direction: column; gap: 4px; }
 .lookup { display: flex; gap: 6px; }
 .lookup input { flex: 1; }
