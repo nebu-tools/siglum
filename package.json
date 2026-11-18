@@ -1,6 +1,8 @@
 {
   "name": "siglum",
   "version": "1.0.0",
+  "description": "A citation manager that runs inside Word",
+  "license": "AGPL-3.0-only",
   "private": true,
   "type": "module",
   "scripts": {
