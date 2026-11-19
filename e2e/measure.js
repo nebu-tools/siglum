@@ -63,6 +63,7 @@ const cursorNearEnd = (bibs) => word(async (c) => {
 async function scenario(cfg) {
   // --steps in measure.mjs picks groups; without it every group runs.
   const on = (g) => !cfg.steps || cfg.steps.includes(g);
+  if (done.first?.error) throw new Error(`pane error on open: ${String(done.first.error).slice(0, 500)}`);
   report("open pane", { ms: Math.round(performance.now()), ...paneSyncs(0), writes: writes(done.first), office: Office.context.diagnostics && { version: Office.context.diagnostics.version, platform: Office.context.diagnostics.platform } });
 
   if (on("idle")) await measure("refresh, nothing to change", () => $("refresh").click());
@@ -93,6 +94,7 @@ async function scenario(cfg) {
       const d = nextDone(3 * 3600000);
       await cursorAtStart();
       const r = await d;
+      if (r?.error) throw new Error(`pane error after a deletion: ${String(r.error).slice(0, 500)}`);
       report("cursor move after a deletion (watcher refresh)", { ms: Math.round(performance.now() - t), ...paneSyncs(t), writes: writes(r) });
       await idle();
     }

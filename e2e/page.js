@@ -686,8 +686,11 @@ async function sections() {
   await markup(shown);
   await setTracking("Off");
   await refresh();
+  // Whatever the relocate added must still be there: the move stays tracked.
   const still = await revisions();
-  check("the move stays tracked for review", moved > before.length && still.length > 0, { moved, before: before.length, types, still });
+  const added = types.filter(([t, x]) => !before.some(([t2, x2]) => t2 === t && x2 === x));
+  const kept = added.length > 0 && added.every(([t, x]) => still.some(([t2, x2]) => t2 === t && x2 === x));
+  check("the move stays tracked for review", moved > before.length && kept, { moved, before: before.length, added, still });
 
   // Renumbering with track changes on: a new first citation renumbers the
   // rest untracked, and the bibliography too.
