@@ -69,6 +69,7 @@ const SCENARIOS = [
   ["sections-reopen", "sections' result, opened again", again("sections")],
   ["renumber", "a document of 300 citations renumbered in batches: a second action, a deletion and a closed pane meanwhile", (name) => withPane(generate({ pages: 30, citations: 300, bibs: 2, refs: 120, seed: 3 }).parts, file(`${name}-in.docx`))],
   ["renumber-reopen", "renumber's result, saved while the batches ran, opened again", again("renumber")],
+  ["fastpath", "a document of 600 citations renumbered in one body write: a text box, a person's bookmark and a comment thread", (name) => withPane(generate({ pages: 60, citations: 600, bibs: 2, refs: 200, seed: 7 }).parts, file(`${name}-in.docx`))],
 ];
 
 async function scenario([name, what, make]) {
@@ -82,6 +83,10 @@ async function scenario([name, what, make]) {
   if (name === "main") {
     check("main: saved citations are content controls", tagged(doc, CITE_PREFIX) >= 8, tagged(doc, CITE_PREFIX));
     check("main: saved with two bibliographies", tagged(doc, BIB_TAG + '"') === 2, tagged(doc, BIB_TAG + '"'));
+  }
+  if (name === "fastpath") {
+    check("fastpath: the person's bookmark is saved", doc.includes('w:name="keepMe"'), doc.match(/<w:bookmarkStart\b[^>]*>/)?.[0]);
+    check("fastpath: the text box text is saved", doc.includes("shape keeps"), doc.includes("shape keeps"));
   }
 }
 

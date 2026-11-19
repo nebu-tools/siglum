@@ -864,7 +864,73 @@ async function renumberReopen() {
   await consistent("after the document closed half-way, the document is consistent again");
 }
 
-const SCENARIOS = { renumber, "renumber-reopen": renumberReopen, main, "main-reopen": mainReopen, template, "template-reopen": templateReopen, markers, sections, "sections-reopen": sectionsReopen };
+// ---- one body write for a large renumber --------------------------------------------
+
+async function fastpath() {
+  const fresh = await unused();
+  // A new first citation renumbers all 600 and grows the bibliographies:
+  // the bibliographies go first, the citations in one body write.
+  await cursorAtStart();
+  let d = nextDone();
+  pick(fresh[0]);
+  await d;
+  await idle();
+  check("a 600-citation renumber numbers the new citation first", (await citeTexts())[0] === "[1]", (await citeTexts()).slice(0, 3));
+  await consistent("a 600-citation renumber leaves a consistent document");
+  // A text box shape passes the body write byte-identical.
+  await command(`$tb = $doc.Shapes.AddTextbox(1, 300, 10, 120, 40)\n$tb.TextFrame.TextRange.Text = 'shape keeps'`);
+  d = nextDone();
+  pick(fresh[1]);
+  await d;
+  await idle();
+  const shape = await command(`($doc.Shapes | ForEach-Object { $_.TextFrame.TextRange.Text }) -join '|'`);
+  check("a text box shape passes the renumber unchanged", shape === "shape keeps", shape);
+  await consistent("a renumber with a text box leaves a consistent document");
+  // A person's bookmark stays out of the body write and survives it.
+  await command(`[void]$doc.Bookmarks.Add('keepMe', $doc.Paragraphs(30).Range)\n$doc.Bookmarks.Count`);
+  const names = await command(`($doc.Bookmarks | ForEach-Object { $_.Name }) -join ','`);
+  d = nextDone();
+  pick(fresh[2]);
+  await d;
+  await idle();
+  const namesAfter = await command(`($doc.Bookmarks | ForEach-Object { $_.Name }) -join ','`);
+  check("a person's bookmark survives the renumber", namesAfter === names && /(^|,)keepMe(,|$)/.test(namesAfter), { names, namesAfter });
+  await consistent("a renumber with a person's bookmark leaves a consistent document");
+  // A modern comment thread reads cleanly under tracked changes.
+  await word(async (c) => {
+    const r = c.document.body.search("Section", { matchCase: true });
+    r.load("items");
+    await c.sync();
+    r.items[0].insertComment("A note in a fast document.");
+    await c.sync();
+  });
+  const threaded = await command(`try {\n$c = @($doc.Comments)[@($doc.Comments).Count - 1]\n$c.Replies.Add('A reply in the thread.') | Out-Null\n$c.Replies.Count\n} catch { 'unsupported' }`);
+  if (threaded === "unsupported") {
+    known("a reply in the comment thread", false, threaded, "Word without modern comment replies");
+  } else {
+    check("a reply joins the comment thread", Number(threaded) === 1, threaded);
+  }
+  await setTracking("TrackAll");
+  await markup("all");
+  const ooxmlAll = await refresh();
+  await markup("simple");
+  const ooxmlSimple = await refresh();
+  const cites = (await citeTexts()).filter(Boolean);
+  check("tracked changes with a comment thread read cleanly",
+    ooxmlAll && !ooxmlAll.error && ooxmlSimple && !ooxmlSimple.error && cites.length > 0,
+    { all: ooxmlAll && { err: ooxmlAll.error }, simple: ooxmlSimple && { err: ooxmlSimple.error }, cites: cites.length });
+  await setTracking("Off");
+  await word(async (c) => {
+    const cs = c.document.body.getComments();
+    cs.load("items");
+    await c.sync();
+    for (const x of cs.items) x.delete();
+    await c.sync();
+  });
+  await consistent("a fast document with a thread read leaves a consistent document");
+}
+
+const SCENARIOS = { renumber, "renumber-reopen": renumberReopen, fastpath, main, "main-reopen": mainReopen, template, "template-reopen": templateReopen, markers, sections, "sections-reopen": sectionsReopen };
 
 onReady(async () => {
   const { scenario } = await (await fetch("e2e-config.json", { cache: "no-store" })).json();
