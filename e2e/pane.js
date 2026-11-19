@@ -55,14 +55,17 @@ export function paneSyncs(t, until = Infinity) {
   return { syncs: s.length, syncMs: Math.round(s.reduce((n, e) => n + e.ms, 0)), each: s.map((e) => Math.round(e.ms)), where: s.map((e) => e.where ?? "?") };
 }
 
-// The pane announces every finished operation with "siglum:done".
+// The pane announces every finished operation with "siglum:done", and
+// "siglum:settled" once all batches are written and the order still holds.
 const waiters = [];
 export const done = { first: null, last: null };
+export const settledEvents = { count: 0 };
 document.addEventListener("siglum:done", (e) => {
   done.last = e.detail;
   done.first = done.first ?? e.detail;
   for (const w of waiters.splice(0)) w(e.detail);
 });
+document.addEventListener("siglum:settled", () => { settledEvents.count++; });
 /** The next operation the pane finishes. */
 export const nextDone = (timeoutMs = 3 * 3600000) => new Promise((resolve, reject) => {
   waiters.push(resolve);

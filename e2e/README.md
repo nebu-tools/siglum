@@ -74,9 +74,9 @@ cite from search at the start (all numbers shift): 24047 ms, 15 syncs (23460 ms 
 
 Each Word session, in `word.ps1`:
 
-- adds one string value under `HKCU\Software\Microsoft\Office\16.0\WEF\Developer`, named after the harness page's add-in id, and removes it at the end; it creates the `Developer` key if it is missing and removes it again if it is then empty;
+- sets one string value under `HKCU\Software\Microsoft\Office\16.0\WEF\Developer`, named after the harness page's add-in id, and restores any pre-existing value of the same name (with its original type and content) at the end, or removes the value if it did not exist; it creates the `Developer` key if it is missing and removes it again if it is then empty;
 - creates a folder `%TEMP%\siglum-e2e-<pid>-<random>` with the manifest, the document and the commands, and `rig.mjs` deletes it at the end; `probe.mjs` does the same with `%TEMP%\siglum-co-<pid>`;
-- starts a Word process of its own and quits it at the end. It checks that Word started a new process and that the document opened in it; otherwise it stops and leaves the other Word alone. If its Word does not quit within 30 seconds, it stops that process by its id. Other Word windows are never touched;
+- starts a Word process of its own and quits it at the end. It verifies the Word process id from a window of the application it started before opening the document, and checks that the document opened in the same process; otherwise it stops and leaves the other Word alone. If its Word does not quit within 30 seconds, it stops that process by its id. Other Word windows are never touched;
 - opens and saves without adding to Word's list of recent files, and removes the entry Word makes under `HKCU\Software\Microsoft\Office\16.0\Word\Reading Locations` for the document.
 
 Word itself keeps a copy of each sideloaded manifest in its add-in cache, `%LOCALAPPDATA%\Microsoft\Office\16.0\Wef`, as it does for every add-in; the rig does not remove it. The suite turns Word's "Use wildcards" find option on and off again in its own Word instance.

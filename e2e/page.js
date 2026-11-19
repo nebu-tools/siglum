@@ -4,7 +4,7 @@
 /* global Word */
 
 import {
-  post, $, sleep, command, word, nextDone, done, onReady, idle, key, pick, refresh,
+  post, $, sleep, command, word, nextDone, done, settledEvents, onReady, idle, key, pick, refresh,
   isCite, isBib, controls, citeTexts, bibTexts, readStore, trackedChanges, setTracking, cursorAfter,
 } from "./pane.js";
 import { CITE_PREFIX } from "../src/model.js";
@@ -275,7 +275,7 @@ async function setupTemplate() {
       const h = i ? b.insertParagraph(text, "End") : b.insertParagraph(text, "Start");
       h.styleBuiltIn = level === 1 ? Word.Style.heading1 : Word.Style.heading2;
       const p = b.insertParagraph(PLACEHOLDER, "End");
-      p.styleBuiltIn = Word.Style.normal;
+      p.styleBuiltIn = text === "References for section 1" ? Word.Style.quote : Word.Style.normal;
       // The last placeholder is a list item, as templates often have them.
       if (i === HEADINGS.length - 1) p.startNewList();
     });
@@ -337,6 +337,7 @@ async function template() {
     return ps.flatMap((p) => p.items.map((q) => [q.styleBuiltIn, q.isListItem]));
   });
   check("a bibliography in a heading or list placeholder is a plain paragraph", styles.length === 4 && styles.every(([b, li]) => !/^Heading/.test(b) && !li), styles);
+  check("a bibliography keeps its placeholder's paragraph style", styles.slice(0, 2).every(([b]) => b === "Quote"), styles.slice(0, 2));
 }
 
 async function templateReopen() {
@@ -692,6 +693,52 @@ async function sections() {
   const kept = added.length > 0 && added.every(([t, x]) => still.some(([t2, x2]) => t2 === t && x2 === x));
   check("the move stays tracked for review", moved > before.length && kept, { moved, before: before.length, added, still });
 
+  // Tracked changes with a comment, a field, a text box holding a citation
+  // control (which Word omits from body.contentControls) and a deleted
+  // paragraph mark: the OOXML read must match Word's list under both views.
+  await word(async (c) => {
+    const r = c.document.body.search("One", { matchCase: true });
+    r.load("items");
+    await c.sync();
+    r.items[0].insertComment("A note in a tracked document.");
+    await c.sync();
+  });
+  await setTracking("TrackAll");
+  await command(`
+$r = $doc.Content
+$f = $r.Find; $f.ClearFormatting(); $f.MatchWildcards = $false; $f.MatchCase = $true
+if (-not $f.Execute('Four')) { throw 'not found: Four' }
+$r.Collapse(1)
+[void]$doc.Fields.Add($r, 33)
+$tb = $doc.Shapes.AddTextbox(1, 300, 10, 120, 40)
+$tb.TextFrame.TextRange.Text = '[?]'
+$cc = $tb.TextFrame.TextRange.ContentControls.Add(1)
+$cc.Tag = '${CITE_PREFIX}intextbox'
+$cc.Title = 'Cite: d'
+$p1 = $doc.Paragraphs(2)
+$doc.Range($p1.Range.End - 1, $p1.Range.End).Delete() | Out-Null
+$doc.Revisions.Count`);
+  await markup("all");
+  const ooxmlAll = await refresh();
+  await markup("simple");
+  const ooxmlSimple = await refresh();
+  const ooxmlCites = (await citeTexts()).filter(Boolean);
+  await markup(shown);
+  check("tracked changes with a comment, field, text box and deleted paragraph mark read cleanly",
+    ooxmlAll && !ooxmlAll.error && ooxmlSimple && !ooxmlSimple.error
+    && !ooxmlSimple.citations.length && !ooxmlSimple.bibs.length
+    && same(ooxmlCites, ["[1]", "[2]", "[3]", "[1]"]),
+    { all: ooxmlAll && { err: ooxmlAll.error, c: ooxmlAll.citations?.length }, simple: ooxmlSimple && { err: ooxmlSimple.error, c: ooxmlSimple.citations?.length }, cites: ooxmlCites, status: $("status").textContent });
+  await setTracking("Off");
+  await command("while ($doc.Shapes.Count -gt 0) { $doc.Shapes(1).Delete() }; $doc.Shapes.Count");
+  await word(async (c) => {
+    const cs = c.document.body.getComments();
+    cs.load("items");
+    await c.sync();
+    for (const x of cs.items) x.delete();
+    await c.sync();
+  });
+
   // Renumbering with track changes on: a new first citation renumbers the
   // rest untracked, and the bibliography too.
   await setTracking("TrackAll");
@@ -777,10 +824,34 @@ async function renumber() {
   const stale = Object.keys(store.citations).filter((id) => !tags.has(id));
   check("the stored entries of citations that are gone leave the store", stale.length === 0, stale);
 
+  // An import while the batches run: the note appears above the progress line,
+  // the dropped writes plan again, and siglum:settled fires once at the end.
+  await cursorAtStart();
+  const settledBefore = settledEvents.count;
+  d = nextDone();
+  pick(fresh[3]);
+  r = await d;
+  const dImport = nextDone();
+  const dt = new DataTransfer();
+  dt.items.add(new File([JSON.stringify([work("imported2025", "Zeller", "Imported during renumbering")])], "mid.json", { type: "text/plain" }));
+  $("file").files = dt.files;
+  $("file").dispatchEvent(new Event("change"));
+  await dImport;
+  await sleep(0);
+  const duringImport = $("status").textContent;
+  await idle();
+  const settledAfter = settledEvents.count - settledBefore;
+  const { store: afterImport } = await readStore();
+  check("an import during renumbering keeps the progress line and settles once",
+    r?.work && /1 new/.test(duringImport) && /Updating citations: \d+ of \d+/.test(duringImport)
+    && settledAfter === 1 && Boolean(afterImport?.sources?.imported2025),
+    { work: !!r?.work, duringImport, settledAfter, imported: Boolean(afterImport?.sources?.imported2025), status: $("status").textContent });
+  await consistent("an import during the renumbering leaves a consistent document");
+
   // The pane closes half-way: a reload stands for it.
   await cursorAtStart();
   d = nextDone();
-  pick(fresh[3]);
+  pick(fresh[4]);
   await d;
   sessionStorage.setItem(PHASE, "reloaded");
   location.reload();
