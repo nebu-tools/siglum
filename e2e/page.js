@@ -885,7 +885,8 @@ async function fastpath() {
   const r2 = await d;
   await idle();
   const shape = await command(`($doc.Shapes | ForEach-Object { $_.TextFrame.TextRange.Text }) -join '|'`);
-  check("a text box shape passes the renumber unchanged", shape === "shape keeps", shape);
+  // Word ends a text frame's range with its paragraph mark.
+  check("a text box shape passes the renumber unchanged", shape.replace(/\r+$/, "") === "shape keeps", shape);
   check("a renumber with a text box takes one body write", r2 && r2.fast === true, r2 && { fast: r2.fast, work: !!r2.work });
   await consistent("a renumber with a text box leaves a consistent document");
   // A person's bookmark stays out of the body write and survives it.
