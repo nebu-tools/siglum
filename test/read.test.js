@@ -14,23 +14,26 @@ const { sdt, r, p } = markup();
  * package, as it came. `writes` records every
  * write and every touch of the store.
  */
-function context(controls, { tracked = 0, ooxml = "", raw } = {}) {
+function context(controls, { tracked = 0, ooxml = "", raw, failSyncAt = [] } = {}) {
   const asked = [];
   const writes = [];
   let queue = [];
   const later = (f) => queue.push(f);
   const items = controls.map((c, i) => ({
-    tag: c.tag, title: "", id: i, text: c.text,
+    tag: c.tag, title: "", id: i, text: c.text, placeholderText: c.placeholderText ?? "",
+    load() {},
     delete() { writes.push(["delete", i]); },
     insertText() { writes.push(["insertText", i]); return {}; },
   }));
   let fail = false;
+  let syncs = 0;
   const ctx = {
     document: {
+      load() {},
       get customXmlParts() { writes.push(["customXmlParts"]); return {}; },
       get contentControls() { writes.push(["document.contentControls"]); return { items, load() {} }; },
       body: {
-        contentControls: { items, load() {} },
+        contentControls: { items, load() {}, getByIdOrNullObject() { return { isNullObject: true, load() {} }; } },
         getTrackedChanges() {
           asked.push("trackedChanges");
           const t = { load() { if (tracked === "move") fail = true; else later(() => { t.items = Array(tracked).fill({}); }); } };
@@ -40,6 +43,7 @@ function context(controls, { tracked = 0, ooxml = "", raw } = {}) {
       },
     },
     async sync() {
+      if (failSyncAt.includes(++syncs)) throw new Error("Word is busy");
       const q = queue;
       queue = [];
       if (fail) { fail = false; throw new Error("GeneralException"); }
@@ -115,10 +119,24 @@ test("unreadable OOXML: the refresh stops before the plan, nothing is removed an
 });
 
 test("without tracked changes an emptied control reads as no text, like the reviewed texts", async () => {
-  const { ctx, asked } = context([{ tag: t(1), text: "[1]" }, { tag: t(2), text: "[empty citation]" }]);
+  const { ctx, asked } = context([{ tag: t(1), text: "[1]" }, { tag: t(2), text: "[empty citation]", placeholderText: "[empty citation]" }]);
   const { controls } = await readControls(ctx);
   assert.deepEqual(asked, ["trackedChanges"]);
   assert.deepEqual(controls.map((c) => [c.current, c.original]), [["[1]", "[1]"], ["", ""]]);
   // A control that is really empty is a leftover, as before.
   assert.deepEqual(plan(controls, store, renderer).removes, [1]);
+});
+
+test("a failing first batch leaves the work for the queue instead of throwing the plan away", async () => {
+  // Two citations the store knows, one of them stale: the plan writes one
+  // batch, and Word fails its sync.
+  const near = { sources: { a: { id: "a" }, b: { id: "b" } }, citations: { 1: [{ id: "a" }], 2: [{ id: "b" }] }, settings: { locale: "en-US" } };
+  const { ctx } = context([{ tag: t(1), text: "[9]" }, { tag: t(2), text: "[2]" }], { failSyncAt: [5] });
+  const session = { renderer, locale: "en-US" };
+  const r = await refresh(ctx, session, { store: near });
+  // The plan stands, with the whole batch still to write: the queue's
+  // batches write it, and plan again when they fail too.
+  assert.equal(r.cited, 2);
+  assert.equal(r.work.total, 1);
+  assert.equal(r.work.citations.length, 1);
 });

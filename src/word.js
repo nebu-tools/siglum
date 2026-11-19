@@ -82,7 +82,7 @@ async function openStore(context, session) {
  */
 export async function readControls(context) {
   const all = citationControls(context);
-  all.load("items/tag,items/title,items/id,items/text");
+  all.load("items/tag,items/title,items/id,items/text,items/placeholderText");
   await context.sync();
   let tracked = true;
   try {
@@ -276,10 +276,21 @@ export async function refresh(context, session, { fresh = [], store } = {}) {
     });
   }
   const work = { citations: rest, total: rest.length, done: 0 };
-  if (rest.length) await writeChunk(context, work);
   // The order of the controls as this refresh leaves it, for the watcher.
+  // Text writes change no tags, so this also holds when the first batch below fails.
   const removed = new Set(p.removes.map((i) => ccs[i]));
   const signature = all.filter((cc) => !removed.has(cc)).map((cc) => cc.tag).join("|");
+  if (rest.length) {
+    // The first batch runs here, before the queue sees the plan: a failure
+    // leaves the work untouched for the queue's batches, which plan again
+    // after dropped writes, instead of throwing the plan away.
+    try {
+      await writeChunk(context, work);
+    } catch (e) {
+      console.error(e);
+      return { ...p, store: p.store ?? store, work, signature };
+    }
+  }
   return { ...p, store: p.store ?? store, work: work.citations.length ? work : null, signature };
 }
 
