@@ -77,35 +77,44 @@ export function resolveLocale(tag, available) {
  * render(sections, library, lang) takes [{citations: [{items: [{id, locator?, label?, suffix?}]}]}]
  * and returns, per section, the runs of each citation and of each entry, in
  * the bundled locale that fits `lang`.
+ *
+ * Each section is numbered by a fresh engine that learns the sources in the
+ * order of their first citation and then formats one citation at a time,
+ * which is many times faster than citeproc's rebuild of a whole document. It
+ * keeps no position between citations, so a style's "ibid." does not occur;
+ * the document's citations are in the text, not in notes. A section that is
+ * the same as before (the same citations, the same sources, the same language)
+ * comes from a cache, so a refresh where little changed formats little.
  */
-export function createRenderer({ style, locales }) {
+export function createRenderer({ style, locales, cacheSize = 64 }) {
   const available = Object.keys(locales);
   const resolve = (tag) => resolveLocale(tag, available);
-  const sys = (library) => ({
-    retrieveLocale: (l) => locales[resolve(l)],
-    retrieveItem: (id) => library[id],
-  });
+  const cache = new Map();
+  const remember = (key, value) => {
+    cache.delete(key);
+    cache.set(key, value);
+    if (cache.size > cacheSize) cache.delete(cache.keys().next().value);
+    return value;
+  };
+  function section(sec, library, locale) {
+    const order = [];
+    const seen = new Set();
+    for (const c of sec.citations) for (const x of c.items) if (!seen.has(x.id)) { seen.add(x.id); order.push(x.id); }
+    const key = JSON.stringify([locale, sec.citations.map((c) => c.items), order.map((id) => library[id])]);
+    const hit = cache.get(key);
+    if (hit) return remember(key, hit);
+    const engine = new CSL.Engine({ retrieveLocale: (l) => locales[resolve(l)], retrieveItem: (id) => library[id] }, style, locale, true);
+    engine.updateItems(order);
+    const citations = sec.citations.map((c) => htmlToRuns(engine.makeCitationCluster(c.items.map(citationItem))));
+    const [, entries] = engine.makeBibliography();
+    return remember(key, { citations, entries: entries.map(entryRuns) });
+  }
   return {
     locales: available,
     resolve,
     render(sections, library, lang = "en-US") {
-      return sections.map((sec) => {
-        if (!sec.citations.length) return { citations: [], entries: [] };
-        // A fresh engine per section restarts the numbering.
-        const engine = new CSL.Engine(sys(library), style, resolve(lang), true);
-        const cits = sec.citations.map((c, i) => ({
-          citationID: "c" + i,
-          citationItems: c.items.map(citationItem),
-          properties: { noteIndex: 0 },
-        }));
-        const res = engine.rebuildProcessorState(cits, "html");
-        const byId = new Map(res.map(([id, , html]) => [id, html]));
-        const [, entries] = engine.makeBibliography();
-        return {
-          citations: cits.map((c) => htmlToRuns(byId.get(c.citationID) ?? "")),
-          entries: entries.map(entryRuns),
-        };
-      });
+      const locale = resolve(lang);
+      return sections.map((sec) => (sec.citations.length ? section(sec, library, locale) : { citations: [], entries: [] }));
     },
   };
 }

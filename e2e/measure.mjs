@@ -6,7 +6,8 @@
 //   node e2e/measure.mjs --pages 50 --citations 300 --bibs 2 --refs 200
 //   node e2e/measure.mjs large --steps tracked,full,reads
 //
-// Step groups: idle, watcher, cite, marker, tracked, full, search, reads.
+// Step groups: idle, watcher, cite, marker, tracked, full, search, reads, and
+// floor (only when named: experiments that show what Word itself costs).
 // Run them in the background: medium takes minutes, large can take hours.
 // Opening the pane is always measured.
 //
@@ -50,8 +51,8 @@ try {
         if (m.measure) {
           rows.push(m);
           const w = m.writes ? ` writes ${m.writes.citations}c/${m.writes.bibs}b/${m.writes.removes}r` : "";
-          const v = m.visibleMs != null ? `, visible ${m.visibleMs} ms` : "";
-          const each = m.each ? ": " + (m.each.length > 40 ? m.each.slice(0, 40).join(" ") + " …" : m.each.join(" ")) : "";
+          const v = (m.visibleMs != null ? `, visible ${m.visibleMs} ms` : "") + (m.settledMs != null ? `, settled ${m.settledMs} ms` : "");
+          const each = m.each ? ": " + m.each.slice(0, 40).map((x, i) => (x >= 100 && m.where?.[i] ? `${x} (${m.where[i]})` : x)).join(" ") + (m.each.length > 40 ? " …" : "") : "";
           console.log(`    ${m.measure}: ${m.ms ?? ""} ms${v}, ${fmt(m.syncs)} syncs (${fmt(m.syncMs)} ms in Word${each})${w}, heap ${fmt(m.heap)} MB`);
           if (m.ms == null && !m.writes) console.log("      " + JSON.stringify(m));
           else if (m.measure.startsWith("read:")) console.log("      " + JSON.stringify(m));

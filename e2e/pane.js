@@ -31,7 +31,9 @@ function patch() {
   if (!proto || proto.__counted) return;
   const sync = proto.sync;
   proto.sync = function (...a) {
-    const e = { t: performance.now(), tag: syncs.tag, ms: 0 };
+    // Which function asked, from the stack: the frame below this one.
+    const where = /at (?:async )?([\w$.]+) \(/.exec(String(new Error().stack).split("\n")[2] ?? "")?.[1];
+    const e = { t: performance.now(), tag: syncs.tag, ms: 0, where };
     syncs.log.push(e);
     return sync.apply(this, a).finally(() => { e.ms = performance.now() - e.t; });
   };
@@ -50,7 +52,7 @@ export async function word(fn) {
 /** The pane's syncs since `t`: count, and the time spent waiting for Word. */
 export function paneSyncs(t, until = Infinity) {
   const s = syncs.log.filter((e) => e.tag === "pane" && e.t >= t && e.t <= until);
-  return { syncs: s.length, syncMs: Math.round(s.reduce((n, e) => n + e.ms, 0)), each: s.map((e) => Math.round(e.ms)) };
+  return { syncs: s.length, syncMs: Math.round(s.reduce((n, e) => n + e.ms, 0)), each: s.map((e) => Math.round(e.ms)), where: s.map((e) => e.where ?? "?") };
 }
 
 // The pane announces every finished operation with "siglum:done".

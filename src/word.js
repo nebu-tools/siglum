@@ -6,10 +6,10 @@
 
 import {
   NS, CITE_PREFIX, BIB_TAG, CITE_NEW,
-  emptyStore, storeToXml, storeFromXml, newId, citeTitle, findMarkers, mayTouch, plan,
+  emptyStore, storeToXml, storeFromXml, newId, citeTitle, findMarkers, mayTouch, plan, paragraphsOf,
 } from "./model.js";
 import { documentText, UserError } from "./messages.js";
-import { controlTexts } from "./ooxml.js";
+import { controlTexts, paragraphStyle, OoxmlError } from "./ooxml.js";
 
 // Hanging indent of bibliography entries, in points (1 cm).
 const HANG = 28.35;
@@ -25,12 +25,27 @@ function citationControls(context) {
   return context.document.body.contentControls;
 }
 
+// The store's custom XML part, as openStore found it in a request context.
+const storePart = new WeakMap();
+
+/**
+ * Queues the store's save. It is written with the next sync; queue it with
+ * other writes to save a round trip. `save` syncs at once.
+ */
+async function queueStore(context, store) {
+  let part = storePart.get(context);
+  if (part === undefined) {
+    const parts = context.document.customXmlParts.getByNamespace(NS);
+    parts.load("items");
+    await context.sync();
+    part = parts.items[0] ?? null;
+  }
+  if (part) part.setXml(storeToXml(store));
+  else storePart.set(context, context.document.customXmlParts.add(storeToXml(store)));
+}
+
 async function saveStore(context, store) {
-  const parts = context.document.customXmlParts.getByNamespace(NS);
-  parts.load("items");
-  await context.sync();
-  if (parts.items.length) parts.items[0].setXml(storeToXml(store));
-  else context.document.customXmlParts.add(storeToXml(store));
+  await queueStore(context, store);
   await context.sync();
 }
 
@@ -43,6 +58,7 @@ async function openStore(context, session) {
   parts.load("items");
   await context.sync();
   if (!parts.items.length) return emptyStore(session.renderer.resolve(session.locale));
+  storePart.set(context, parts.items[0]);
   const xml = parts.items[0].getXml();
   await context.sync();
   return storeFromXml(xml.value);
@@ -58,6 +74,11 @@ async function openStore(context, session) {
  * getReviewedText costs about 90 ms per control in a large document and
  * gives a moved text both ways. So then the texts come from the body's OOXML,
  * which says what is inserted, deleted and moved, in one read.
+ *
+ * Throws an OoxmlError, before anything is written, when the OOXML is not
+ * well-formed or its controls are not the ones Word lists, in number and in
+ * the order of their tags: then the texts cannot be trusted, and a citation
+ * read as empty would be removed.
  */
 export async function readControls(context) {
   const all = citationControls(context);
@@ -81,25 +102,15 @@ export async function readControls(context) {
     const ooxml = context.document.body.getOoxml();
     await context.sync();
     const ours = controlTexts(ooxml.value).filter((c) => isOurs(c));
-    if (ours.length === ccs.length && ours.every((c, i) => c.tag === ccs[i].tag)) texts = ours;
-    else texts = await reviewedTexts(context, ccs);
+    if (ours.length !== ccs.length || ours.some((c, i) => c.tag !== ccs[i].tag)) {
+      throw new OoxmlError("error.ooxmlMismatch", { listed: ccs.length, read: ours.length });
+    }
+    texts = ours;
   }
   const controls = ccs.map((cc, i) => (isCite(cc)
     ? { kind: "cite", tag: cc.tag, title: cc.title, current: texts[i].current, original: texts[i].original }
     : { kind: "bib", current: texts[i].current }));
-  return { ccs, controls };
-}
-
-/** The texts from getReviewedText, for when the OOXML does not match the controls Word lists. */
-async function reviewedTexts(context, ccs) {
-  const r = ccs.map((cc) => [cc.getReviewedText("Current"), cc.getReviewedText("Original")]);
-  await context.sync();
-  // Word wraps a control's reviewed text in "<…>". An emptied control shows its placeholder.
-  const text = (cc, x) => {
-    const v = x.value.startsWith("<") && x.value.endsWith(">") ? x.value.slice(1, -1) : x.value;
-    return v === cc.placeholderText ? "" : v;
-  };
-  return ccs.map((cc, i) => ({ current: text(cc, r[i][0]), original: text(cc, r[i][1]) }));
+  return { ccs, controls, all: all.items };
 }
 
 function setFont(range, run) {
@@ -109,30 +120,100 @@ function setFont(range, run) {
   range.font.subscript = !!run.subscript;
 }
 
-const plain = (runs) => runs.length === 1 && !runs[0].italic && !runs[0].bold && !runs[0].superscript && !runs[0].subscript;
+const plain = (runs) => runs.every((r) => !r.italic && !r.bold && !r.superscript && !r.subscript);
+const textOf = (runs) => runs.map((r) => r.text).join("");
 
-/** Replaces a citation's text. Plain text keeps the formatting around it. */
-function writeCitation(cc, runs) {
-  if (plain(runs)) { cc.insertText(runs[0].text, "Replace"); return; }
-  runs.forEach((run, i) => setFont(cc.insertText(run.text, i ? "End" : "Replace"), run));
+/**
+ * Replaces the text of a citation or a bibliography entry. Plain text is one
+ * write; only formatted runs cost a write each. Every write into a citation
+ * costs Word about as much as the next (15–20 ms in a document of 4,000
+ * citations), so the count of writes is the cost.
+ */
+function writeRuns(target, runs) {
+  if (plain(runs)) { target.insertText(textOf(runs), "Replace"); return; }
+  runs.forEach((run, i) => setFont(target.insertText(run.text, i ? "End" : "Replace"), run));
 }
 
-function writeBibliography(cc, entries) {
-  entries.forEach((runs, i) => {
-    let p;
-    let rest = runs;
-    if (i === 0) {
-      // Replacing the whole content leaves one paragraph with the bibliography's style.
-      setFont(cc.insertText(runs[0].text, "Replace"), runs[0]);
-      p = cc.paragraphs.getFirst();
-      rest = runs.slice(1);
-    } else {
-      p = cc.insertParagraph("", "End");
-    }
-    for (const run of rest) setFont(p.insertText(run.text, "End"), run);
-    p.leftIndent = HANG;
-    p.firstLineIndent = -HANG;
+const escapeXml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const runXml = (run) => {
+  const pr = [run.bold && "<w:b/>", run.italic && "<w:i/>", run.smallCaps && "<w:smallCaps/>", run.superscript && '<w:vertAlign w:val="superscript"/>', run.subscript && '<w:vertAlign w:val="subscript"/>'].filter(Boolean).join("");
+  return run.text.split("\t").map((t, i) => (i ? `<w:r>${pr && `<w:rPr>${pr}</w:rPr>`}<w:tab/></w:r>` : "") + (t ? `<w:r>${pr && `<w:rPr>${pr}</w:rPr>`}<w:t xml:space="preserve">${escapeXml(t)}</w:t></w:r>` : "")).join("");
+};
+
+/**
+ * A bibliography's entries as one OOXML package, each a paragraph with a
+ * hanging indent and the paragraph style `style` of the bibliography's first
+ * paragraph (its style, not its list, indent or run properties), so its style
+ * stays. Word takes 300 entries in one piece in
+ * a quarter of a second, against about 6 ms for each single entry.
+ */
+function entriesOoxml(entries, style) {
+  const props = `<w:pPr>${style ? `<w:pStyle w:val="${escapeXml(style)}"/>` : ""}<w:ind w:left="${Math.round(HANG * 20)}" w:hanging="${Math.round(HANG * 20)}"/></w:pPr>`;
+  const body = entries.map((runs) => `<w:p>${props}${runs.map(runXml).join("")}</w:p>`).join("");
+  return `<pkg:package xmlns:pkg="http://schemas.microsoft.com/office/2006/xmlPackage"><pkg:part pkg:name="/_rels/.rels" pkg:contentType="application/vnd.openxmlformats-package.relationships+xml"><pkg:xmlData><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships></pkg:xmlData></pkg:part><pkg:part pkg:name="/word/document.xml" pkg:contentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"><pkg:xmlData><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document></pkg:xmlData></pkg:part></pkg:package>`;
+}
+
+/**
+ * Reads what writing the bibliographies `bibs` needs, in one sync, and
+ * returns a function that queues the writes: entry by entry where the plan
+ * has hunks and the bibliography still has the paragraphs the plan was made
+ * from, otherwise the whole bibliography in one piece.
+ */
+async function prepareBibliographies(context, bibs) {
+  const all = bibs.map((b) => {
+    const cc = context.document.body.contentControls.getByIdOrNullObject(b.id);
+    const ps = cc.paragraphs;
+    ps.load("items/text");
+    return { b, cc, ps, first: cc.paragraphs.getFirst().getOoxml() };
   });
+  if (all.length) await context.sync();
+  // Read before anything is written: an unreadable paragraph stops the refresh.
+  for (const x of all) x.style = x.cc.isNullObject ? null : paragraphStyle(x.first.value);
+  return () => {
+    for (const { b, cc, ps, style } of all) {
+      if (cc.isNullObject) continue;
+      if (!b.hunks || ps.items.length !== b.paragraphs) {
+        cc.getRange("Content").insertOoxml(entriesOoxml(b.entries, style), "Replace");
+        continue;
+      }
+      for (const h of [...b.hunks].reverse()) {
+        const keep = Math.min(h.remove, h.insert.length);
+        for (let t = 0; t < keep; t++) writeRuns(ps.items[h.at + t], b.entries[h.insert[t]]);
+        // A paragraph added before the first or after the last one goes in
+        // through the control, so that it stays inside it.
+        const extra = h.insert.slice(keep).map((j) => b.entries[j]);
+        const after = h.at + keep - 1;
+        const add = (where) => (runs) => {
+          const q = where === "After" ? ps.items[after].insertParagraph("", "After") : cc.insertParagraph("", where);
+          writeRuns(q, runs);
+          q.leftIndent = HANG;
+          q.firstLineIndent = -HANG;
+        };
+        if (after === ps.items.length - 1) extra.forEach(add("End"));
+        else if (after < 0) [...extra].reverse().forEach(add("Start"));
+        else [...extra].reverse().forEach(add("After"));
+        for (let t = h.at + keep; t < h.at + h.remove; t++) ps.items[t].delete();
+      }
+    }
+  };
+}
+
+/**
+ * Queues `write` with track changes off and the mode restored in the same
+ * batch, so nothing the person types meanwhile goes untracked.
+ */
+async function writeUntracked(context, write) {
+  const doc = context.document;
+  doc.load("changeTrackingMode");
+  await context.sync();
+  const was = doc.changeTrackingMode;
+  if (was !== "Off") doc.changeTrackingMode = "Off";
+  try {
+    write();
+  } finally {
+    if (was !== "Off") doc.changeTrackingMode = was;
+    await context.sync();
+  }
 }
 
 async function withTracking(context, mode, fn) {
@@ -151,31 +232,86 @@ async function withTracking(context, mode, fn) {
   }
 }
 
+/** Citations per batch while numbers change: about half a second of Word's time in a large document. */
+export const CHUNK = 30;
+
 /**
  * Brings numbers and bibliographies up to date. Citations in `fresh` (Word
- * content control ids) were just added by the user and follow the document's
- * track-changes mode. Everything else is derived and is written untracked, so
- * renumbering does not bury the real changes in review.
+ * content control ids) were just added by the person and follow the
+ * document's track-changes mode. Everything else is derived and is written
+ * untracked, so renumbering does not bury the real changes in review.
+ *
+ * It writes only what differs: removed leftovers, the store, the
+ * bibliographies and the first `CHUNK` citations. What is left comes back as
+ * `work`, for writeChunk; the pane writes it in batches while it stays
+ * usable. A document left half written, by a closed pane or document, is put
+ * right by the next refresh, which plans from what the document holds.
  */
 export async function refresh(context, session, { fresh = [], store } = {}) {
   store = store ?? await openStore(context, session);
-  const { ccs, controls } = await readControls(context);
+  const { ccs, controls, all } = await readControls(context);
   const { locale } = store.settings;
-  const p = plan(controls, store, session.renderer, { locale, bibEmpty: documentText(locale).bibEmpty });
-  if (p.store) await saveStore(context, p.store);
+  const opts = { locale, bibEmpty: documentText(locale).bibEmpty };
+  let p = plan(controls, store, session.renderer, opts);
+  if (p.store && Object.keys(p.store.citations).length < Object.keys(store.citations).length) {
+    // Before stored citations go, keep those of controls in footnotes, headers and text boxes.
+    const everywhere = context.document.contentControls;
+    everywhere.load("items/tag");
+    await context.sync();
+    const inBody = new Set(ccs.map((cc) => cc.tag));
+    const elsewhere = everywhere.items.filter((cc) => isCite(cc) && !inBody.has(cc.tag)).map((cc) => cc.tag.slice(CITE_PREFIX.length));
+    if (elsewhere.length) p = plan(controls, store, session.renderer, { ...opts, elsewhere });
+  }
+  const bibs = p.bibs.map((b) => ({ id: ccs[b.index].id, entries: b.entries, hunks: b.hunks, paragraphs: paragraphsOf(controls[b.index].current).length }));
+  const writeBibs = await prepareBibliographies(context, bibs);
   const own = p.citations.filter((c) => fresh.includes(ccs[c.index].id));
-  for (const c of own) writeCitation(ccs[c.index], c.runs);
-  await context.sync();
-  const rest = p.citations.filter((c) => !own.includes(c));
-  if (rest.length || p.bibs.length || p.removes.length) {
-    await withTracking(context, "Off", async () => {
+  for (const c of own) writeRuns(ccs[c.index], c.runs);
+  if (p.store) await saveStore(context, p.store);
+  else if (own.length) await context.sync();
+  const rest = p.citations.filter((c) => !own.includes(c)).map((c) => ({ id: ccs[c.index].id, runs: c.runs }));
+  if (rest.length || bibs.length || p.removes.length) {
+    await writeUntracked(context, () => {
       for (const i of p.removes) ccs[i].delete(false);
-      for (const c of rest) writeCitation(ccs[c.index], c.runs);
-      for (const b of p.bibs) writeBibliography(ccs[b.index], b.entries);
-      await context.sync();
+      writeBibs();
     });
   }
-  return { ...p, store: p.store ?? store };
+  const work = { citations: rest, total: rest.length, done: 0 };
+  // The order of the controls as this refresh leaves it, for the watcher.
+  // Text writes change no tags, so this also holds when the first batch below fails.
+  const removed = new Set(p.removes.map((i) => ccs[i]));
+  const signature = all.filter((cc) => !removed.has(cc)).map((cc) => cc.tag).join("|");
+  if (rest.length) {
+    // The first batch runs here, before the queue sees the plan: a failure
+    // leaves the work untouched for the queue's batches, which plan again
+    // after dropped writes, instead of throwing the plan away.
+    try {
+      await writeChunk(context, work);
+    } catch (e) {
+      console.error(e);
+      return { ...p, store: p.store ?? store, work, signature };
+    }
+  }
+  return { ...p, store: p.store ?? store, work: work.citations.length ? work : null, signature };
+}
+
+/**
+ * Writes the next batch of `work.citations` untracked, by content control id,
+ * and takes them off the list. A control that is gone meanwhile is skipped.
+ */
+export async function writeChunk(context, work, size = CHUNK) {
+  const batch = work.citations.slice(0, size);
+  const ccs = batch.map((c) => {
+    const cc = context.document.body.contentControls.getByIdOrNullObject(c.id);
+    cc.load("id");
+    return cc;
+  });
+  // The controls are found in the same sync that reads the track-changes mode.
+  await writeUntracked(context, () => {
+    batch.forEach((c, i) => { if (!ccs[i].isNullObject) writeRuns(ccs[i], c.runs); });
+  });
+  work.citations = work.citations.slice(batch.length);
+  work.done += batch.length;
+  return work;
 }
 
 function tagCitation(cc, id, items, text) {
@@ -189,8 +325,11 @@ function tagCitation(cc, id, items, text) {
  * Cites `items` at the cursor. Inside an existing citation the items join it,
  * so a click on [3] and a pick gives [3,4]. With track changes on they become a
  * citation of their own right after it, which review can reject on its own.
+ *
+ * The new citation gets its number first, from the order of the citations'
+ * tags, and `onVisible` is called; then refresh brings the rest up to date.
  */
-export async function insertCitation(context, session, items) {
+export async function insertCitation(context, session, items, { onVisible } = {}) {
   const store = await openStore(context, session);
   const sel = context.document.getSelection();
   const host = sel.parentContentControlOrNullObject;
@@ -213,13 +352,23 @@ export async function insertCitation(context, session, items) {
   }
   // A new id each time, so copies of a citation elsewhere keep their items.
   const id = newId();
-  tagCitation(cc, id, all, documentText(store.settings.locale));
+  const { locale } = store.settings;
+  tagCitation(cc, id, all, documentText(locale));
   cc.load("id");
+  const tags = citationControls(context);
+  tags.load("items/tag,items/title,items/id");
   await context.sync();
   const next = { ...store, citations: { ...store.citations, [id]: all } };
-  await saveStore(context, next);
+  // Its number, from the order of the tags alone: texts cost twice as much to read.
+  const ours = tags.items.filter(isOurs);
+  const at = ours.findIndex((x) => x.id === cc.id);
+  const quick = ours.map((x) => (isCite(x) ? { kind: "cite", tag: x.tag, title: x.title, current: CITE_NEW, original: CITE_NEW } : { kind: "bib", current: "" }));
+  const first = plan(quick, next, session.renderer, { locale }).citations.find((c) => c.index === at);
+  if (first) writeRuns(cc, first.runs);
   cc.getRange("After").select("End");
-  await context.sync();
+  // The number, the cursor and the store go to Word in one batch.
+  await saveStore(context, next);
+  onVisible?.();
   return refresh(context, session, { fresh: [cc.id], store: next });
 }
 
@@ -258,6 +407,9 @@ async function addBibliography(context, text) {
   cc.appearance = "BoundingBox";
   await context.sync();
 }
+
+// Beyond this many "@" in the body, all paragraphs are read at once instead of one per "@".
+const PARAGRAPHS_MAX = 400;
 
 // Word's literal search takes at most this many characters, and "^" starts a
 // special code such as "^p" in it, so a caret is searched as "^^".
@@ -305,7 +457,8 @@ function occurrences(text, needle) {
  * group's range: one search for the group's text, or for a group longer than
  * a search can be, one for its start and one for its end and the range
  * between them. Each distinct text is searched once per paragraph, and the
- * group is the hit at its place among the text's occurrences. A group whose
+ * group is the hit at its place among the text's occurrences. Only the
+ * paragraphs with an "@" are read, and the controls only when there is a marker. A group whose
  * range does not read exactly as the paragraph's text does is lost, and so is
  * one that reaches into or over a citation or a bibliography, so nothing is
  * replaced on a guess. All this takes four syncs.
@@ -317,15 +470,27 @@ export async function locateMarkers(context) {
   await context.sync();
   if (!probe.items.length) return { markers: [], lost: [] };
 
-  const paragraphs = body.paragraphs;
-  paragraphs.load("items/text");
-  const controls = citationControls(context);
-  controls.load("items/tag,items/text");
-  await context.sync();
+  // Only the paragraphs that hold an "@" are read: a document with a few
+  // e-mail addresses does not pay for reading all of its text.
+  let paragraphs;
+  if (probe.items.length > PARAGRAPHS_MAX) {
+    paragraphs = body.paragraphs;
+    paragraphs.load("items/text");
+    await context.sync();
+    paragraphs = paragraphs.items;
+  } else {
+    const each = probe.items.map((r) => { const p = r.paragraphs.getFirst(); p.load("text"); return p; });
+    const same = each.map((p, i) => (i ? p.getRange("Whole").compareLocationWith(each[i - 1].getRange("Whole")) : null));
+    await context.sync();
+    paragraphs = each.filter((p, i) => !i || same[i].value !== "Equal");
+  }
   const lost = [];
   const groups = [];
-  for (const p of paragraphs.items) {
-    if (!p.text.includes("@")) continue;
+  const marked = paragraphs.filter((p) => p.text.includes("@")).map((p) => ({ p, groups: findMarkers(p.text) })).filter((x) => x.groups.length);
+  if (!marked.length) return { markers: [], lost: [] };
+  const controls = citationControls(context);
+  controls.load("items/tag,items/text");
+  for (const { p, groups: found } of marked) {
     const searches = new Map();
     const find = (text, at) => {
       let s = searches.get(text);
@@ -336,7 +501,7 @@ export async function locateMarkers(context) {
       }
       return { s, nth: s.at.get(at) };
     };
-    for (const g of findMarkers(p.text)) {
+    for (const g of found) {
       if (searchText(g.text).length <= SEARCH_MAX) { groups.push({ g, ends: [find(g.text, g.start)] }); continue; }
       const head = piece(g.text, false);
       const tail = piece(g.text, true);
@@ -344,6 +509,7 @@ export async function locateMarkers(context) {
       groups.push({ g, ends: [find(head, g.start), find(tail, g.end - tail.length)] });
     }
   }
+  await context.sync();
   // A marker must not touch a citation or a bibliography, at any depth. Word
   // compares a group's range only with the controls whose text can meet it.
   const ours = controls.items.filter(isOurs);
@@ -352,7 +518,6 @@ export async function locateMarkers(context) {
     group.near = ours.filter((cc) => mayTouch(group.g.text, cc.text));
     for (const cc of group.near) if (!whole.has(cc)) whole.set(cc, cc.getRange("Whole"));
   }
-  await context.sync();
 
   const found = [];
   for (const { g, ends, near } of groups) {

@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { dist, build, requireWindows, withPane, inWord, readDocx, stop } from "./rig.mjs";
 import { BIB_TAG, CITE_PREFIX, NS, storeFromXml } from "../src/model.js";
+import { generate } from "./generate.mjs";
 
 requireWindows();
 build();
@@ -66,6 +67,8 @@ const SCENARIOS = [
   ["markers", "typed markers next to fields, tracked changes, comments, controls and in long groups", empty("markers")],
   ["sections", "copy, cut and move of citations between sections, tracked moves", empty("sections")],
   ["sections-reopen", "sections' result, opened again", again("sections")],
+  ["renumber", "a document of 300 citations renumbered in batches: a second action, a deletion and a closed pane meanwhile", (name) => withPane(generate({ pages: 30, citations: 300, bibs: 2, refs: 120, seed: 3 }).parts, file(`${name}-in.docx`))],
+  ["renumber-reopen", "renumber's result, saved while the batches ran, opened again", again("renumber")],
 ];
 
 async function scenario([name, what, make]) {

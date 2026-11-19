@@ -1,0 +1,206 @@
+{
+  "size": "large",
+  "spec": {
+    "pages": 500,
+    "citations": 4000,
+    "bibs": 6,
+    "refs": 2000
+  },
+  "steps": [
+    "floor"
+  ],
+  "generated": {
+    "pages": 500,
+    "paragraphs": 2500,
+    "citations": 4000,
+    "bibs": 6,
+    "refs": 2000,
+    "cited": 841,
+    "storeBytes": 1027386,
+    "documentBytes": 3118997,
+    "nodeRenderMs": 2708,
+    "stale": false,
+    "fresh": [
+      "haddad1998",
+      "fischer2001",
+      "rossi2023",
+      "smith2022",
+      "mueller2007c",
+      "okafor2020c",
+      "silva2017",
+      "mueller2024a"
+    ]
+  },
+  "word": {
+    "startSeconds": 1.1863541,
+    "version": "16.0",
+    "build": "16.0.20326",
+    "openSeconds": 3.8886874999999996,
+    "pid": 57568,
+    "stalls": [],
+    "paneSeconds": 82.8220003,
+    "peakWorkingSetMB": 421,
+    "privateMB": 348,
+    "pages": 450,
+    "pagesSeconds": 3.5163339999999996,
+    "saveSeconds": 0.705356
+  },
+  "code": 0,
+  "ok": true,
+  "seconds": 97.21,
+  "rows": [
+    {
+      "measure": "open pane",
+      "heap": 51,
+      "ms": 4028,
+      "syncs": 12,
+      "syncMs": 2164,
+      "each": [
+        150,
+        82,
+        92,
+        151,
+        0,
+        757,
+        146,
+        84,
+        0,
+        345,
+        357,
+        0
+      ],
+      "where": [
+        "openStore",
+        "openStore",
+        "?",
+        "locateMarkers",
+        "convertMarkers",
+        "readControls",
+        "e.processTelemetryEvents",
+        "readControls",
+        "?",
+        "signature",
+        "e.processTelemetryEvents",
+        "?"
+      ],
+      "writes": {
+        "citations": 0,
+        "bibs": 0,
+        "removes": 0,
+        "cited": 4000,
+        "pending": 0,
+        "unknown": 0
+      },
+      "office": {
+        "version": "16.0.20326.20318",
+        "platform": "PC"
+      }
+    },
+    {
+      "measure": "floor: 100 citation writes, Office.js",
+      "heap": 62,
+      "msPerWrite": 14.6
+    },
+    {
+      "measure": "floor: 100 citation writes, Word's object model",
+      "heap": 62,
+      "msPerWrite": 18.7
+    },
+    {
+      "measure": "floor: the same 100 writes again, the text unchanged",
+      "heap": 71,
+      "msPerWrite": 18.9
+    },
+    {
+      "measure": "floor: round 1 of 200 writes in one session",
+      "heap": 38,
+      "msPerWrite": 15.2
+    },
+    {
+      "measure": "floor: round 2 of 200 writes in one session",
+      "heap": 48,
+      "msPerWrite": 16.4
+    },
+    {
+      "measure": "floor: round 3 of 200 writes in one session",
+      "heap": 59,
+      "msPerWrite": 15.8
+    },
+    {
+      "measure": "floor: round 4 of 200 writes in one session",
+      "heap": 69,
+      "msPerWrite": 17.5
+    },
+    {
+      "measure": "floor: round 5 of 200 writes in one session",
+      "heap": 54,
+      "msPerWrite": 17.4
+    },
+    {
+      "measure": "floor: round 6 of 200 writes in one session",
+      "heap": 40,
+      "msPerWrite": 23.7
+    },
+    {
+      "measure": "floor: round 7 of 200 writes in one session",
+      "heap": 31,
+      "msPerWrite": 19.8
+    },
+    {
+      "measure": "floor: round 8 of 200 writes in one session",
+      "heap": 38,
+      "msPerWrite": 25.9
+    },
+    {
+      "measure": "floor: round 9 of 200 writes in one session",
+      "heap": 40,
+      "msPerWrite": 29.7
+    },
+    {
+      "measure": "floor: round 10 of 200 writes in one session",
+      "heap": 37,
+      "msPerWrite": 28.3
+    },
+    {
+      "measure": "floor: 100 writes after clearing the undo list",
+      "heap": 31,
+      "msPerWrite": 24.1
+    },
+    {
+      "measure": "floor: getReviewedText, per control",
+      "heap": 36,
+      "msPerControl": 70.9
+    },
+    {
+      "measure": "floor: body.getOoxml",
+      "heap": 57,
+      "ms": 1264,
+      "bytes": 3368096
+    },
+    {
+      "measure": "floor: bibliography, 20 entries rewritten one by one",
+      "heap": 45,
+      "ms": 328,
+      "entries": 20
+    },
+    {
+      "measure": "floor: bibliography, whole, one OOXML insert",
+      "heap": 57,
+      "ms": 148,
+      "entries": 309
+    },
+    {
+      "measure": "floor: bibliography, whole, as main wrote it (a write per run and per indent)",
+      "heap": 41,
+      "ms": 17348,
+      "entries": 309
+    },
+    {
+      "measure": "stored data",
+      "heap": 41,
+      "parts": 1,
+      "bytes": 1026664,
+      "citations": 4000
+    }
+  ]
+}

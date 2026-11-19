@@ -11,13 +11,14 @@ import { buildIndex, search } from "./search.js";
 import { lookup } from "./lookup.js";
 import { LANGUAGES, pickLanguage, translator, UserError } from "./messages.js";
 import * as doc from "./word.js";
+import { createQueue } from "./queue.js";
 
 // A style picker would replace `style` here. Nothing else knows the style.
 const session = { renderer: createRenderer({ style, locales: { "en-US": enUS, "de-DE": deDE } }), locale: "en-US" };
 const LANGUAGE_KEY = "siglum.language";
 const $ = (id) => document.getElementById(id);
 
-const state = { library: {}, index: [], hits: [], active: 0, marked: [], busy: false, sig: null, status: null };
+const state = { library: {}, index: [], hits: [], active: 0, marked: [], note: null };
 let t = translator("en");
 
 // ---- language -----------------------------------------------------------------
@@ -129,15 +130,28 @@ function toggleMark(key) {
 
 // ---- status ---------------------------------------------------------------------
 
-/** Shows a status. `text` is a function, so the status follows a change of language. */
-function status(text, error = false) {
-  state.status = { text, error };
+/**
+ * The status line: an error, what the last operation has to say (`note`), and
+ * then where the document stands: the progress of a renumbering, citation
+ * numbers that are not up to date, or the summary of the last refresh. Texts
+ * are functions, so the status follows a change of language.
+ */
+function note(text, error = false) {
+  state.note = { text, error };
   showStatus();
 }
 
 function showStatus() {
-  $("status").textContent = state.status ? state.status.text() : "";
-  $("status").classList.toggle("error", Boolean(state.status?.error));
+  const q = queue.state;
+  const lines = [];
+  if (q.error) lines.push(errorText(q.error));
+  if (state.note) lines.push(state.note.text());
+  let problem = Boolean(q.error || state.note?.error);
+  if (q.progress) lines.push(t("progress.writing", q.progress));
+  else if (q.stale) { lines.push(t("status.stale")); problem = true; }
+  else if (q.result && !state.note && !q.error) { lines.push(summary(q.result)); problem ||= hasProblems(q.result); }
+  $("status").textContent = lines.join("\n");
+  $("status").classList.toggle("error", problem);
 }
 
 const errorText = (e) => (e instanceof UserError ? t(e.key, e.params) : e?.message ?? String(e));
@@ -159,33 +173,31 @@ const hasProblems = (r) => Boolean(r.unknown?.length || r.unknownMarkers?.length
 
 // ---- document operations ----------------------------------------------------------
 
-/** Runs document operations one after another and reports their errors. */
-let queue = Promise.resolve();
-function op(fn) {
-  const p = queue.then(() => run(fn));
-  queue = p.catch(() => {});
-  return p;
-}
+const queue = createQueue({
+  word: (fn) => Word.run(fn),
+  refresh: (context) => doc.refresh(context, session),
+  writeChunk: doc.writeChunk,
+  signature: doc.signature,
+  chunk: doc.CHUNK,
+  now: () => performance.now(),
+  emit(type, detail) {
+    if (type === "change") {
+      if (detail.busy) document.body.setAttribute("aria-busy", "true");
+      else document.body.removeAttribute("aria-busy");
+      showStatus();
+    } else if (type === "done") {
+      if (detail?.store) setStore(detail.store);
+      document.dispatchEvent(new CustomEvent("siglum:done", { detail: detail?.error ? { error: errorText(detail.error) } : detail }));
+    } else {
+      document.dispatchEvent(new CustomEvent("siglum:settled"));
+    }
+  },
+});
 
-async function run(fn) {
-  state.busy = true;
-  document.body.setAttribute("aria-busy", "true");
-  try {
-    const r = await Word.run((context) => fn(context));
-    if (r?.store) setStore(r.store);
-    if (r?.cited != null) status(() => summary(r), hasProblems(r));
-    state.sig = await Word.run((context) => doc.signature(context));
-    document.dispatchEvent(new CustomEvent("siglum:done", { detail: r }));
-    return r;
-  } catch (e) {
-    status(() => errorText(e), true);
-    console.error(e);
-    document.dispatchEvent(new CustomEvent("siglum:done", { detail: { error: errorText(e) } }));
-    return null;
-  } finally {
-    state.busy = false;
-    document.body.removeAttribute("aria-busy");
-  }
+/** Runs a document operation through the queue. Its note, if any, replaces the last one's. */
+function op(fn) {
+  state.note = null;
+  return queue.run(fn);
 }
 
 async function cite(keys) {
@@ -194,7 +206,7 @@ async function cite(keys) {
   // The supplement belongs to one source, so it is used for a single one only.
   const supplement = list.length === 1 ? parseSupplement($("supplement").value) : {};
   const items = list.map((id) => ({ id, ...supplement }));
-  const r = await op((c) => doc.insertCitation(c, session, items));
+  const r = await op((c) => doc.insertCitation(c, session, items, { onVisible: () => document.dispatchEvent(new CustomEvent("siglum:visible")) }));
   if (r) {
     state.marked = [];
     $("supplement").value = "";
@@ -209,12 +221,12 @@ async function importFiles(files) {
     try {
       incoming = incoming.concat(parseLibrary(await f.text(), f.name));
     } catch (e) {
-      status(() => t("import.failed", { file: f.name, reason: errorText(e) }), true);
+      note(() => t("import.failed", { file: f.name, reason: errorText(e) }), true);
       return;
     }
   }
   const r = await op((c) => doc.addSources(c, session, (lib) => mergeItems(lib, incoming)));
-  if (r) status(() => `${t("import.done", { added: r.added, updated: r.updated })} · ${sourceCount(r.library)}`);
+  if (r) note(() => `${t("import.done", { added: r.added, updated: r.updated })} · ${sourceCount(r.library)}`);
 }
 
 async function fetchIdent(text) {
@@ -222,14 +234,14 @@ async function fetchIdent(text) {
   try {
     item = await lookup(text);
   } catch (e) {
-    status(() => errorText(e), true);
+    note(() => errorText(e), true);
     return;
   }
   const r = await op((c) => doc.addSources(c, session, (lib) => mergeItems(lib, [item])));
   if (!r) return;
   const same = (a, b) => a && b && String(a).toLowerCase() === String(b).toLowerCase();
   const key = Object.values(r.library).find((x) => same(x.DOI, item.DOI) || same(x.PMID, item.PMID))?.id;
-  status(() => t(r.added ? "lookup.added" : "lookup.known", { key }));
+  note(() => t(r.added ? "lookup.added" : "lookup.known", { key }));
   $("q").value = key ?? "";
   $("ident").value = "";
   showResults();
@@ -268,20 +280,14 @@ function wire() {
 
 // Deleting or pasting a citation changes the order of tags. A quiet check after
 // the cursor moves keeps numbers and bibliographies current without a click.
+// It does not run while citation numbers are known not to be up to date: the
+// status line then asks for a click on Refresh.
 function watch() {
   let timer = null;
-  const check = async () => {
-    if (state.busy) return;
-    try {
-      const sig = await Word.run((context) => doc.signature(context));
-      if (sig !== state.sig) await op((c) => doc.refresh(c, session));
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  const check = () => queue.check().catch((e) => console.error(e));
   Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, () => {
     clearTimeout(timer);
-    timer = setTimeout(check, 1200);
+    timer = setTimeout(check, 700);
   });
 }
 

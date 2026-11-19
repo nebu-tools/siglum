@@ -20,7 +20,7 @@ With Office's display language in English and then in German, the ribbon button,
 
 ## Working in a large document
 
-`node e2e/measure.mjs large` records how long Word's window does not answer ("UI stalls"). Whether Word feels usable while Siglum renumbers a large document needs someone typing in it.
+`node e2e/measure.mjs large` records how long Word's window does not answer ("UI stalls"). Whether Word feels usable while Siglum renumbers a large document, and whether the progress line in the pane is clear, needs someone typing in it.
 
 ## Other places Word runs
 
