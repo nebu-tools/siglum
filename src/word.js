@@ -9,7 +9,8 @@ import {
   emptyStore, storeToXml, storeFromXml, newId, citeTitle, findMarkers, mayTouch, plan, paragraphsOf,
 } from "./model.js";
 import { documentText, UserError } from "./messages.js";
-import { controlTexts, paragraphStyle, OoxmlError, bookmarkNames, rewriteCitationTexts, runXml, runsText } from "./ooxml.js";
+import { controlTexts, paragraphStyle, OoxmlError, runXml, runsText, escapeXml } from "./ooxml.js";
+import { fastEligible, fastCites } from "./fast.js";
 
 // Hanging indent of bibliography entries, in points (1 cm).
 const HANG = 28.35;
@@ -133,8 +134,6 @@ function writeRuns(target, runs) {
   runs.forEach((run, i) => setFont(target.insertText(run.text, i ? "End" : "Replace"), run));
 }
 
-const escapeXml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
 /**
  * A bibliography's entries as one OOXML package, each a paragraph with a
  * hanging indent and the paragraph style `style` of the bibliography's first
@@ -231,71 +230,6 @@ async function withTracking(context, mode, fn) {
 export const CHUNK = 30;
 
 /**
- * Citations rewritten by one whole-body OOXML write instead of one write per
- * control when at least this many need it. Rewriting the whole body changed
- * 4,000 citations in 5.5–6.9 s against 106–341 s one by one, with track
- * changes off: the fixed cost is about one OOXML read, the write and one
- * verification read. Below this count the per-control path is no slower.
- */
-export const FAST_CITES_MIN = 500;
-
-// Word's own bookmarks start with an underscore; a person's own bookmarks do
-// not. A whole-body write has grown a person's bookmark by a character per
-// write, so the fast path stays off while the document holds any of theirs.
-// Images and other embedded objects pass through byte-identical, but this is
-// untested with them, with threaded comments and with co-authoring.
-const personBookmark = (name) => !name.startsWith("_");
-
-/**
- * Whether the fast whole-body path may run: no tracked changes, nothing but
- * citations to write, and enough of them. Bibliographies keep their own
- * one-piece path, and leftovers their deletes.
- */
-export function fastEligible({ tracked, bibs, removes, cites }) {
-  return !tracked && !bibs && !removes && cites >= FAST_CITES_MIN;
-}
-
-/**
- * Rewrites the citations in `rest` with one body OOXML write, then checks
- * every rewritten control's text against what the plan wants. `planned`
- * are all the plan's citations with their positions, `restCites` those
- * still to write, and `rest` maps them to content control ids. Returns the citations that still need
- * the per-control path: all of them when the fast path does not apply or
- * its write fails, the mismatches when verification finds any. Never
- * throws: the per-control path below writes what is left.
- */
-async function fastCites(context, ccs, controls, planned, restCites, rest) {
-  try {
-    const doc = context.document;
-    doc.load("changeTrackingMode");
-    await context.sync();
-    if (doc.changeTrackingMode !== "Off") return rest;
-    const oo = doc.body.getOoxml();
-    await context.sync();
-    if (bookmarkNames(oo.value).some(personBookmark)) return rest;
-    const rewrites = new Map(restCites.map((c) => [ccs[c.index].tag, c.runs]));
-    const { xml, applied, skipped } = rewriteCitationTexts(oo.value, rewrites);
-    if (skipped.length || applied.length !== restCites.length) return rest;
-    doc.body.insertOoxml(xml, "Replace");
-    await context.sync();
-    // Every citation the plan writes, including the fresh ones already
-    // written above, reads back as planned; the rest stays as it was.
-    const wantRuns = new Map(planned.map((c) => [c.index, runsText(c.runs)]));
-    const want = new Map(ccs.map((cc, i) => [cc.id, wantRuns.has(i) ? wantRuns.get(i) : controls[i].current]));
-    const check = doc.body.contentControls;
-    check.load("items/id,items/tag,items/text");
-    await context.sync();
-    const missing = new Set(check.items
-      .filter((cc) => isOurs(cc) && want.has(cc.id) && want.get(cc.id) !== cc.text)
-      .map((cc) => cc.id));
-    return rest.filter((c) => missing.has(c.id));
-  } catch (e) {
-    console.error(e);
-    return rest;
-  }
-}
-
-/**
  * Brings numbers and bibliographies up to date. Citations in `fresh` (Word
  * content control ids) were just added by the person and follow the
  * document's track-changes mode. Everything else is derived and is written
@@ -307,11 +241,13 @@ async function fastCites(context, ccs, controls, planned, restCites, rest) {
  * usable. A document left half written, by a closed pane or document, is put
  * right by the next refresh, which plans from what the document holds.
  *
- * With track changes off, no revisions, nothing but many citations to write
- * and no person's bookmarks in the document, one whole-body OOXML write
- * replaces the per-control writes instead, and every rewritten control's
- * text is checked against the plan: what the check or the write leaves
- * behind, the per-control path heals.
+ * With track changes off, no revisions and enough citations to write, one
+ * whole-body OOXML write replaces the per-control writes instead, after
+ * bibliographies and leftovers went through the existing path; every
+ * rewritten control's text is checked against the plan: what the check
+ * or the write leaves behind, the per-control path heals. The result says
+ * whether the body write ran (`fast`), so the e2e suite can assert on the
+ * path taken.
  */
 export async function refresh(context, session, { fresh = [], store } = {}) {
   store = store ?? await openStore(context, session);
@@ -337,9 +273,22 @@ export async function refresh(context, session, { fresh = [], store } = {}) {
   const restCites = p.citations.filter((c) => !own.includes(c));
   let rest = restCites.map((c) => ({ id: ccs[c.index].id, runs: c.runs }));
   const total = rest.length;
+  // Whether the body write ran: the e2e suite asserts on it.
+  let fast = false;
   if (total || bibs.length || p.removes.length) {
-    if (fastEligible({ tracked, bibs: bibs.length, removes: p.removes.length, cites: total })) {
-      rest = await fastCites(context, ccs, controls, p.citations, restCites, rest);
+    if (fastEligible({ tracked, bibs: bibs.length, removes: p.removes.length, cites: total, withOthers: true })) {
+      // Bibliographies and leftovers go first through the existing path, so
+      // the body the fast path reads already holds them; what it leaves
+      // behind, the batches below write per control.
+      if (bibs.length || p.removes.length) {
+        await writeUntracked(context, () => {
+          for (const i of p.removes) ccs[i].delete(false);
+          writeBibs();
+        });
+      }
+      const out = await fastCites(context, ccs, controls, p.citations, restCites, rest);
+      rest = out.left;
+      fast = out.wrote;
     } else {
       await writeUntracked(context, () => {
         for (const i of p.removes) ccs[i].delete(false);
@@ -360,10 +309,10 @@ export async function refresh(context, session, { fresh = [], store } = {}) {
       await writeChunk(context, work);
     } catch (e) {
       console.error(e);
-      return { ...p, store: p.store ?? store, work, signature };
+      return { ...p, store: p.store ?? store, work, signature, fast };
     }
   }
-  return { ...p, store: p.store ?? store, work: work.citations.length ? work : null, signature };
+  return { ...p, store: p.store ?? store, work: work.citations.length ? work : null, signature, fast };
 }
 
 /**

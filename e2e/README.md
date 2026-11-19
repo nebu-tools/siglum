@@ -4,7 +4,7 @@ Everything here runs the add-in in real Word for Windows, driven from WSL on the
 
 | File | What it is |
 | --- | --- |
-| `run.mjs` + `page.js` | The end-to-end suite (`npm run e2e`): pass or fail per check, in nine scenarios, 95 checks. |
+| `run.mjs` + `page.js` | The end-to-end suite (`npm run e2e`): pass or fail per check, in ten scenarios. |
 | `measure.mjs` + `measure.js` | Timings on generated documents: opening the pane, refresh, citing, a typed marker, the selection watcher, track changes, a full rewrite. |
 | `probe.mjs` + `probe.js` | Findings, not checks, about what the README lists as limits: citations in footnotes, endnotes, headers and text boxes, citations pasted into another document, two Word instances on one file. |
 | `report.mjs` | Puts `measure-*.json` files side by side as a Markdown table. |
@@ -30,6 +30,7 @@ The rig reads every stored name (tags, title prefix, namespace) from `src/model.
 | `sections-reopen` | `sections`' result opened again; after accepting the changes, a refresh writes nothing. |
 | `renumber` | A generated document of 300 citations: a new first citation is numbered at once and the rest follows in batches with a progress line; a second citation and a deletion while the batches run; the pane closed (reloaded) half-way; the document saved and closed half-way. Afterwards a refresh writes nothing, and the stored entries of deleted citations are gone. |
 | `renumber-reopen` | `renumber`'s result, saved while the batches ran, opened again: the first refresh writes the rest, the next one nothing. |
+| `fastpath` | A generated document of 600 citations: a new first citation renumbers them in one body write after the bibliographies; a text box, a person's bookmark and a comment thread pass through. |
 
 A check that fails because of a defect listed in the README's limits is reported as `KNOWN` with the reason and does not fail the run.
 
@@ -139,6 +140,22 @@ For an operation that renumbers, `ms` is the time until the pane reports the ope
 | pane JS heap, last | 33 MB | 32 MB | 49 MB |
 | citeproc in Node, whole document | 0.3 s | 0.9 s | 4.2 s |
 
+### Fast path, 2026-11-19
+
+Head `4823d04` (the fast-body-v2 branch), Word 16.0.20326 on the same computer, same 450-page document. `npm test` 133/133. E2E: 111 of 113 checks pass; the 2 failures are both the new `fastpath` scenario reading a text box back as `"shape keeps\r"` (Word ends a text frame's range with its paragraph mark — a check defect, fixed after the run), plus 2 KNOWN. Large measure, wall time 800 s:
+
+| operation, large | 2026-11-18 baseline | now |
+| --- | --- | --- |
+| open pane | 4.5 s, 12 syncs | 2.4 s, 10 syncs, 36 % in Word |
+| refresh, nothing to change | 1.3 s, 9 syncs | 0.7 s, 10 syncs |
+| cite from search at the start: number visible / document current | 1.2 s / 16 s, 87 syncs, writes 667c/1b | 0.68 s / 8.1 s, 17 syncs, writes 667c/1b |
+| typed marker at the start + refresh | 3.3 s / settled 20 s, 115 syncs | settled 9.9 s, 21 syncs, writes 669c/1b |
+| cite at the start with track changes on | 1.2 s / settled 36 s, 187 syncs | 0.68 s / settled 18.6 s, 103 syncs |
+| refresh with a tracked change, nothing to change | 3.3 s, 10 syncs | 2.2 s, 10 syncs |
+| full refresh, every citation rewritten | settled 342 s, 1202 syncs | settled 195 s, 1112 syncs |
+
+The cite-at-start row uses the one-write path: three `fastCites` syncs of about 0.9, 3.8 and 0.4 s. The pane reports done later than before (7.9 s against 3.3 s), because the whole write happens before done instead of in batches afterwards; the new number is visible in 0.68 s either way. The full-refresh row still went through the batches: the document held a tracked change from the earlier step, so the fast path stayed off by design. UI stalls ≥ 1 s: 6, longest 5.2 s (baseline 4, 1.9 s); the README's tens-of-percent noise warning applies.
+
 ## Where Word sets the floor
 
 `node e2e/measure.mjs large --steps floor` runs these experiments on the large document, outside the pane (`baseline/measure-large-floor.json`):
@@ -148,7 +165,7 @@ For an operation that renumbers, `ms` is the time until the pane reports the ope
 - A bibliography of 309 entries takes 0.1 s as one OOXML insert, about 15 ms per entry when entries are rewritten one by one, and 17 s the way main wrote it: a write for every run's font and for every paragraph's indent. That was the 61 s for one bibliography.
 - Right after Word opens a large document it lays out its pages, and the pane's first round trips wait for that: about 2.5 s on the large document (Word's own page count takes as long). That is most of the 4.5 s for opening the pane.
 
-What Siglum does about it: it reads `text` and, only with tracked changes, the OOXML; it writes only citations and entries that differ; a bibliography changes entry by entry when few entries differ and in one OOXML insert when many do; a new citation gets its number from the order of the tags before anything else is read; citeproc formats one citation at a time and keeps the sections it formatted; the rest of a renumbering goes in batches of about half a second of Word's time, with "Updating citations: … of …" in the pane. A new action runs before the remaining batches. The batches of the old plan are then dropped, and Siglum plans again after the action, unless the action was itself a refresh. A failed batch is handled the same way. The pane says the document is current (`siglum:settled`) only after a plan that left nothing to write and whose order of controls still holds.
+What Siglum does about it: it reads `text` and, only with tracked changes, the OOXML; it writes only citations and entries that differ; a bibliography changes entry by entry when few entries differ and in one OOXML insert when many do; a new citation gets its number from the order of the tags before anything else is read; citeproc formats one citation at a time and keeps the sections it formatted; the rest of a renumbering goes in batches of about half a second of Word's time, with "Updating citations: … of …" in the pane, unless track changes are off, nothing else needs writing and enough citations need it: then one OOXML write of the body replaces the batches, after bibliographies and leftovers went through, and every rewritten control's text is checked against the plan. A new action runs before the remaining batches. The batches of the old plan are then dropped, and Siglum plans again after the action, unless the action was itself a refresh. A failed batch is handled the same way. The pane says the document is current (`siglum:settled`) only after a plan that left nothing to write and whose order of controls still holds.
 
 ## Baseline of main at 475ce75, before the changes
 
