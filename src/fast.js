@@ -39,23 +39,24 @@ export function fastEligible({ tracked, bibs, removes, cites, withOthers = false
  * every rewritten control's text against what the plan wants. `planned`
  * are all the plan's citations with their positions, `restCites` those
  * still to write, and `rest` maps them to content control ids. Returns
- * the citations that still need the per-control path: all of them when the
- * fast path does not apply or its write fails, the mismatches when
- * verification finds any. Never throws: the per-control path below writes
- * what is left.
+ * `{left, wrote}`: the citations that still need the per-control path, and
+ * whether the body write ran. `left` is all of `rest` when the fast path
+ * does not apply or its write fails, and the mismatches when verification
+ * finds any. Never throws: the per-control path below writes what is left.
  */
 export async function fastCites(context, ccs, controls, planned, restCites, rest) {
+  const fallback = { left: rest, wrote: false };
   try {
     const doc = context.document;
     doc.load("changeTrackingMode");
     await context.sync();
-    if (doc.changeTrackingMode !== "Off") return rest;
+    if (doc.changeTrackingMode !== "Off") return fallback;
     const oo = doc.body.getOoxml();
     await context.sync();
-    if (bookmarkNames(oo.value).some(personBookmark)) return rest;
+    if (bookmarkNames(oo.value).some(personBookmark)) return fallback;
     const rewrites = new Map(restCites.map((c) => [ccs[c.index].tag, c.runs]));
     const { xml, applied, skipped } = rewriteCitationTexts(oo.value, rewrites);
-    if (skipped.length || applied.length !== restCites.length) return rest;
+    if (skipped.length || applied.length !== restCites.length) return fallback;
     doc.body.insertOoxml(xml, "Replace");
     await context.sync();
     // Every citation the plan writes, including the fresh ones already
@@ -68,9 +69,9 @@ export async function fastCites(context, ccs, controls, planned, restCites, rest
     const missing = new Set(check.items
       .filter((cc) => isOurs(cc) && want.has(cc.id) && want.get(cc.id) !== cc.text)
       .map((cc) => cc.id));
-    return rest.filter((c) => missing.has(c.id));
+    return { left: rest.filter((c) => missing.has(c.id)), wrote: true };
   } catch (e) {
     console.error(e);
-    return rest;
+    return fallback;
   }
 }

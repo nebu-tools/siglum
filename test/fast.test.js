@@ -131,6 +131,7 @@ test("five hundred stale citations go in one body write, verified", async () => 
   assert.equal(insertedPackages.length, 1);
   assert.deepEqual(perControlInsert, []);
   assert.equal(r.work, null);
+  assert.equal(r.fast, true);
   assert.deepEqual(backing, backing.map((_, i) => `[${i + 1}]`));
   assert.equal(r.cited, n);
 });
@@ -141,6 +142,7 @@ test("track changes on, or the mode not off, keeps the per-control path", async 
   assert.equal(tracked.insertedPackages.length, 0);
   assert.equal(tracked.perControlInsert.length, 3);
   assert.equal(r1.work, null);
+  assert.equal(r1.fast, false);
 
   const coauthored = context(FAST_CITES_MIN, { mode: "TrackAll" });
   const r2 = await refresh(coauthored.ctx, session, { store: storeFor(FAST_CITES_MIN) });
@@ -148,6 +150,7 @@ test("track changes on, or the mode not off, keeps the per-control path", async 
   assert.equal(r2.work.citations.length, FAST_CITES_MIN - 30);
   assert.equal(r2.work.total, FAST_CITES_MIN);
   assert.equal(r2.work.done, 30);
+  assert.equal(r2.fast, false);
   assert.equal(coauthored.ctx.document.changeTrackingMode, "TrackAll");
 });
 
@@ -156,6 +159,7 @@ test("a person's bookmark keeps the per-control path", async () => {
   const r = await refresh(ctx, session, { store: storeFor(FAST_CITES_MIN) });
   assert.equal(insertedPackages.length, 0);
   assert.equal(perControlInsert.length, 30);
+  assert.equal(r.fast, false);
   assert.equal(r.work.citations.length, FAST_CITES_MIN - 30);
 });
 
@@ -165,6 +169,7 @@ test("a Word-internal bookmark does not block the fast path", async () => {
   assert.equal(insertedPackages.length, 1);
   assert.deepEqual(perControlInsert, []);
   assert.equal(r.work, null);
+  assert.equal(r.fast, true);
 });
 
 test("a fresh citation writes per control, the rest go in one body write", async () => {
@@ -174,6 +179,7 @@ test("a fresh citation writes per control, the rest go in one body write", async
   assert.equal(insertedPackages.length, 1);
   assert.deepEqual(perControlInsert, [0]);
   assert.equal(r.work, null);
+  assert.equal(r.fast, true);
   assert.deepEqual(backing, backing.map((_, i) => `[${i + 1}]`));
 });
 
@@ -184,6 +190,7 @@ test("a control the body write leaves behind is healed per control", async () =>
   assert.equal(insertedPackages.length, 1);
   assert.deepEqual(perControlInsert, [6]);
   assert.equal(r.work, null);
+  assert.equal(r.fast, true);
   assert.equal(backing[6], "[7]");
 });
 
@@ -196,6 +203,7 @@ test("a failing body write falls back to batches", async () => {
   assert.equal(r.work.citations.length, n - 30);
   assert.equal(r.work.total, n);
   assert.equal(r.work.done, 30);
+  assert.equal(r.fast, false);
 });
 
 test("an emptied control is deleted first, then the rest go in one body write", async () => {
@@ -206,6 +214,7 @@ test("an emptied control is deleted first, then the rest go in one body write", 
   assert.equal(insertedPackages.length, 1);
   assert.deepEqual(perControlInsert, []);
   assert.equal(r.work, null);
+  assert.equal(r.fast, true);
   assert.deepEqual(backing.slice(1), backing.slice(1).map((_, k) => `[${k + 1}]`));
 });
 
@@ -218,4 +227,17 @@ test("a rewritten bibliography goes first, then the rest go in one body write", 
   assert.deepEqual(order, ["bib", "body"]);
   assert.deepEqual(perControlInsert, []);
   assert.equal(r.work, null);
+  assert.equal(r.fast, true);
+});
+
+test("a refresh with nothing to write reports no body write", async () => {
+  const { ctx, backing, insertedPackages, perControlInsert } = context(3);
+  backing[0] = "[1]";
+  backing[1] = "[2]";
+  backing[2] = "[3]";
+  const r = await refresh(ctx, session, { store: storeFor(3) });
+  assert.equal(r.work, null);
+  assert.equal(r.fast, false);
+  assert.deepEqual(insertedPackages, []);
+  assert.deepEqual(perControlInsert, []);
 });

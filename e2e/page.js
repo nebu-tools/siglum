@@ -873,28 +873,31 @@ async function fastpath() {
   await cursorAtStart();
   let d = nextDone();
   pick(fresh[0]);
-  await d;
+  const r1 = await d;
   await idle();
   check("a 600-citation renumber numbers the new citation first", (await citeTexts())[0] === "[1]", (await citeTexts()).slice(0, 3));
+  check("a 600-citation renumber takes one body write", r1 && r1.fast === true, r1 && { fast: r1.fast, work: !!r1.work });
   await consistent("a 600-citation renumber leaves a consistent document");
   // A text box shape passes the body write byte-identical.
   await command(`$tb = $doc.Shapes.AddTextbox(1, 300, 10, 120, 40)\n$tb.TextFrame.TextRange.Text = 'shape keeps'`);
   d = nextDone();
   pick(fresh[1]);
-  await d;
+  const r2 = await d;
   await idle();
   const shape = await command(`($doc.Shapes | ForEach-Object { $_.TextFrame.TextRange.Text }) -join '|'`);
   check("a text box shape passes the renumber unchanged", shape === "shape keeps", shape);
+  check("a renumber with a text box takes one body write", r2 && r2.fast === true, r2 && { fast: r2.fast, work: !!r2.work });
   await consistent("a renumber with a text box leaves a consistent document");
   // A person's bookmark stays out of the body write and survives it.
   await command(`[void]$doc.Bookmarks.Add('keepMe', $doc.Paragraphs(30).Range)\n$doc.Bookmarks.Count`);
   const names = await command(`($doc.Bookmarks | ForEach-Object { $_.Name }) -join ','`);
   d = nextDone();
   pick(fresh[2]);
-  await d;
+  const r3 = await d;
   await idle();
   const namesAfter = await command(`($doc.Bookmarks | ForEach-Object { $_.Name }) -join ','`);
   check("a person's bookmark survives the renumber", namesAfter === names && /(^|,)keepMe(,|$)/.test(namesAfter), { names, namesAfter });
+  check("a renumber with a person's bookmark skips the body write", r3 && r3.fast !== true, r3 && { fast: r3.fast });
   await consistent("a renumber with a person's bookmark leaves a consistent document");
   // A modern comment thread reads cleanly under tracked changes.
   await word(async (c) => {

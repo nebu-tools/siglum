@@ -245,7 +245,9 @@ export const CHUNK = 30;
  * whole-body OOXML write replaces the per-control writes instead, after
  * bibliographies and leftovers went through the existing path; every
  * rewritten control's text is checked against the plan: what the check
- * or the write leaves behind, the per-control path heals.
+ * or the write leaves behind, the per-control path heals. The result says
+ * whether the body write ran (`fast`), so the e2e suite can assert on the
+ * path taken.
  */
 export async function refresh(context, session, { fresh = [], store } = {}) {
   store = store ?? await openStore(context, session);
@@ -271,6 +273,8 @@ export async function refresh(context, session, { fresh = [], store } = {}) {
   const restCites = p.citations.filter((c) => !own.includes(c));
   let rest = restCites.map((c) => ({ id: ccs[c.index].id, runs: c.runs }));
   const total = rest.length;
+  // Whether the body write ran: the e2e suite asserts on it.
+  let fast = false;
   if (total || bibs.length || p.removes.length) {
     if (fastEligible({ tracked, bibs: bibs.length, removes: p.removes.length, cites: total, withOthers: true })) {
       // Bibliographies and leftovers go first through the existing path, so
@@ -282,7 +286,9 @@ export async function refresh(context, session, { fresh = [], store } = {}) {
           writeBibs();
         });
       }
-      rest = await fastCites(context, ccs, controls, p.citations, restCites, rest);
+      const out = await fastCites(context, ccs, controls, p.citations, restCites, rest);
+      rest = out.left;
+      fast = out.wrote;
     } else {
       await writeUntracked(context, () => {
         for (const i of p.removes) ccs[i].delete(false);
@@ -303,10 +309,10 @@ export async function refresh(context, session, { fresh = [], store } = {}) {
       await writeChunk(context, work);
     } catch (e) {
       console.error(e);
-      return { ...p, store: p.store ?? store, work, signature };
+      return { ...p, store: p.store ?? store, work, signature, fast };
     }
   }
-  return { ...p, store: p.store ?? store, work: work.citations.length ? work : null, signature };
+  return { ...p, store: p.store ?? store, work: work.citations.length ? work : null, signature, fast };
 }
 
 /**
