@@ -27,6 +27,9 @@ async function measure(name, trigger, extra = {}) {
   const d = nextDone();
   trigger();
   const r = await d;
+  // A pane error is not a completed operation: fail the session instead of
+  // recording it as one.
+  if (r?.error) throw new Error(`pane error during ${name}: ${String(r.error).slice(0, 500)}`);
   const ms = Math.round(performance.now() - t);
   // A pane that goes on working after "done", in chunks, reports done again at the end.
   await idle();

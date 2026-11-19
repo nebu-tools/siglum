@@ -84,3 +84,12 @@ test("when the OOXML does not match the controls, each control's reviewed text i
   assert.deepEqual(asked.filter((x) => x === "Current" || x === "Original").length, 4);
   assert.deepEqual(controls.map((c) => [c.current, c.original]), [["[1]", "[1]"], ["", "[2]"]]);
 });
+
+test("without tracked changes an emptied control reads as no text, like the reviewed texts", async () => {
+  const { ctx, asked } = context([{ tag: t(1), text: "[1]" }, { tag: t(2), text: "[empty citation]" }]);
+  const { controls } = await readControls(ctx);
+  assert.deepEqual(asked, ["trackedChanges"]);
+  assert.deepEqual(controls.map((c) => [c.current, c.original]), [["[1]", "[1]"], ["", ""]]);
+  // A control that is really empty is a leftover, as before.
+  assert.deepEqual(plan(controls, store, renderer).removes, [1]);
+});

@@ -73,7 +73,10 @@ export async function readControls(context) {
     // Word cannot list a document's tracked changes when one of them is a move.
   }
   const ccs = all.items.filter(isOurs);
-  let texts = ccs.map((cc) => ({ current: cc.text, original: cc.text }));
+  // An emptied control shows its placeholder: like the reviewed texts below,
+  // that reads as no text.
+  const shown = (cc) => (cc.placeholderText && cc.text === cc.placeholderText ? "" : cc.text);
+  let texts = ccs.map((cc) => ({ current: shown(cc), original: shown(cc) }));
   if (tracked) {
     const ooxml = context.document.body.getOoxml();
     await context.sync();

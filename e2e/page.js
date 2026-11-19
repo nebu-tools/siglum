@@ -423,6 +423,9 @@ const foreign = (before, inner, after, { cite: citeInside = false } = {}) => asy
   p.getRange("End").insertText(after, "Replace");
 };
 
+/** How many comments the body holds. */
+const commentCount = () => word(async (c) => { const cs = c.document.body.getComments(); cs.load("items"); await c.sync(); return cs.items.length; });
+
 async function markers() {
   await importFile(JSON.stringify(MARKER_SOURCES), "markers.json");
   check("import", new RegExp(`${MARKER_SOURCES.length} new`).test($("status").textContent), $("status").textContent);
@@ -471,10 +474,13 @@ async function markers() {
     m.load("items");
     await c.sync();
     m.items[0].insertComment("A note on the marker.");
-  }], { text: "See [#] here.", cites: ["a"] }, async () => {
-    const n = await word(async (c) => { const cs = c.document.body.getComments(); cs.load("items"); await c.sync(); return cs.items.length; });
-    return n === 1 ? true : { comments: n };
-  }, "Word deletes a comment when all of its text goes, and a marker's text is replaced by the citation.");
+  }], { text: "See [#] here.", cites: ["a"] });
+  // Word deletes a comment when all of its text goes, and a marker's text is
+  // replaced by the citation: the comment may not survive, but the conversion
+  // above must still be exact.
+  const comments = await commentCount();
+  known("a comment anchored on the marker survives", comments === 1, { comments },
+    "Word deletes a comment when all of its text goes, and a marker's text is replaced by the citation.");
 
   // Places.
   await markerCase("markers in table cells, the same marker twice in a row", [async (c, b) => {
@@ -663,6 +669,7 @@ async function sections() {
   await insertBibliography();
   await setTracking("TrackAll");
   const shown = await markup("all");
+  const before = await revisions();
   const moved = await comRelocate("Two");
   w = await watcher("Four");
   if (!w) await refresh();
@@ -679,7 +686,8 @@ async function sections() {
   await markup(shown);
   await setTracking("Off");
   await refresh();
-  check("the move stays tracked for review", types.length > 0, types);
+  const still = await revisions();
+  check("the move stays tracked for review", moved > before.length && still.length > 0, { moved, before: before.length, types, still });
 
   // Renumbering with track changes on: a new first citation renumbers the
   // rest untracked, and the bibliography too.

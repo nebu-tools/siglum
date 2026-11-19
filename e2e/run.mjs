@@ -83,6 +83,14 @@ async function scenario([name, what, make]) {
 }
 
 const want = process.argv.slice(2);
+for (const w of want) {
+  if (!SCENARIOS.some(([n]) => n === w)) check(`${w}: input`, false, `no such scenario (one of ${SCENARIOS.map(([n]) => n).join(", ")})`);
+}
+// A reopen scenario needs its first run's document: include it.
+for (const [n] of SCENARIOS) {
+  const first = n.replace(/-reopen$/, "");
+  if (first !== n && want.includes(n) && !want.includes(first)) want.unshift(first);
+}
 try {
   for (const sc of SCENARIOS) if (!want.length || want.includes(sc[0])) await scenario(sc);
 } finally {

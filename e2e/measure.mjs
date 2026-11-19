@@ -61,7 +61,10 @@ try {
     const result = { size, spec, steps, generated: g.stats, word: r.info, code: r.code, ok: r.done?.ok, seconds: (Date.now() - t0) / 1000, rows };
     fs.writeFileSync(path.join(dist, `measure-${size}${steps ? "-" + steps.join("+") : ""}.json`), JSON.stringify(result, null, 2));
     console.log(`    Word: ${JSON.stringify(r.info)}`);
-    if (r.code !== 0 || !r.done?.ok) console.log(`FAIL ${size}: exit ${r.code}, done ${JSON.stringify(r.done)}`);
+    if (r.code !== 0 || !r.done?.ok) {
+      console.log(`FAIL ${size}: exit ${r.code}, done ${JSON.stringify(r.done)}`);
+      process.exitCode = 1;
+    }
   }
 } finally {
   stop();
