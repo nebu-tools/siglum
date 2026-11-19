@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { controlTexts, paragraphStyle, OoxmlError } from "../src/ooxml.js";
+import { controlTexts, paragraphStyle, OoxmlError, bookmarkNames, rewriteCitationTexts } from "../src/ooxml.js";
 import { W, markup, pkg, bodyPackage } from "./ooxml-fixtures.js";
 
 const { sdt, r, p, del, ins, pDeletedMark } = markup();
@@ -136,4 +136,53 @@ test("a paragraph's style, from its own properties only", () => {
   const x = markup("x");
   assert.equal(paragraphStyle(pkg(x.document(x.p(x.r("A"), '<x:pStyle x:val="Quote"/>')))), "Quote");
   unreadable(() => paragraphStyle(bodyPackage(para(r("1. A"), '<w:pStyle w:val="Bibliography"/>')).slice(0, -20)));
+});
+
+test("bookmark names, whatever prefix they use", () => {
+  assert.deepEqual(bookmarkNames(bodyPackage(p(r("x")))), []);
+  const kept = `<w:bookmarkStart w:id="0" w:name="keepMe"/><w:bookmarkEnd w:id="0"/>`;
+  const goback = `<w:bookmarkStart w:id="1" w:name="_GoBack"/><w:bookmarkEnd w:id="1"/>`;
+  assert.deepEqual(bookmarkNames(bodyPackage(p(r("x") + kept + goback))), ["keepMe", "_GoBack"]);
+  const x = markup("x");
+  assert.deepEqual(bookmarkNames(bodyPackage(x.p(x.r("y") + `<x:bookmarkStart x:id="2" x:name="there"/><x:bookmarkEnd x:id="2"/>`), "x")), ["there"]);
+});
+
+test("a citation's text rewritten in the package, nothing else touched", () => {
+  const before = bodyPackage(p(`before ${sdt("a", r("[1]"))} middle ${sdt("b", r("[2]"))} after`));
+  const { xml, applied, skipped } = rewriteCitationTexts(before, new Map([["a", [{ text: "[10]" }]]]));
+  assert.deepEqual(applied, ["a"]);
+  assert.deepEqual(skipped, []);
+  assert.equal(xml, before.replace(`<w:t xml:space="preserve">[1]</w:t>`, `<w:t xml:space="preserve">[10]</w:t>`));
+  const read = (x) => controlTexts(x).map((c) => [c.tag, c.current, c.original]);
+  assert.equal(read(xml).find(([tag]) => tag === "a")[1], "[10]");
+  assert.equal(read(xml).find(([tag]) => tag === "b")[1], "[2]");
+});
+
+test("rewritten runs keep formatting, with the document's own prefix", () => {
+  const x = markup("x");
+  const before = bodyPackage(x.p(x.sdt("a", x.r("[1]"))), "x");
+  const { xml, applied, skipped } = rewriteCitationTexts(before, new Map([["a", [{ text: "Au", italic: true }, { text: " [3]" }]]]));
+  assert.deepEqual([applied, skipped], [["a"], []]);
+  assert.ok(xml.includes(`<x:r><x:rPr><x:i/></x:rPr><x:t xml:space="preserve">Au</x:t></x:r>`));
+  assert.ok(xml.includes(`<x:t xml:space="preserve"> [3]</x:t>`));
+  assert.ok(!xml.includes(`<w:r><w:t xml:space="preserve">[1]</w:t></w:r>`));
+});
+
+test("what the rewrite skips: placeholders, duplicates, missing tags, complex content", () => {
+  const field = `<w:r><w:fldChar w:fldCharType="begin"/></w:r>`;
+  const multi = sdt("m", r("[1]") + `<w:r><w:t>more</w:t></w:r>`);
+  const nested = sdt("n", r("[1]") + sdt("inner", r("[x]")));
+  const before = bodyPackage(p(sdt("ph", r("[empty citation]"), "<w:showingPlcHdr/>") + sdt("d", r("[1]")) + p(sdt("d", r("[2]"))) + sdt("f", field + r("[3]")) + multi + nested));
+  const jobs = new Map([["ph", [{ text: "[9]" }]], ["d", [{ text: "[9]" }]], ["gone", [{ text: "[9]" }]], ["f", [{ text: "[9]" }]], ["m", [{ text: "[9]" }]], ["n", [{ text: `[9]` }]]]);
+  const { xml, applied, skipped } = rewriteCitationTexts(before, jobs);
+  assert.deepEqual(applied, []);
+  assert.deepEqual(skipped.map((s) => [s.tag, s.reason]), [["ph", "placeholder"], ["d", "duplicate"], ["gone", "missing"], ["f", "complex"], ["m", "complex"], ["n", "nested"]]);
+  assert.equal(xml, before);
+});
+
+test("a control off in a text box is rewritten by tag like any other", () => {
+  const boxed = `<w:r><mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice Requires="wps"><w:drawing><wps:txbx xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"><w:txbxContent>${p(sdt("b", r("[?]")))}</w:txbxContent></wps:txbx></w:drawing></mc:Choice></mc:AlternateContent></w:r>`;
+  const before = bodyPackage(p(sdt("a", r("[1]")) + boxed));
+  const { applied, skipped } = rewriteCitationTexts(before, new Map([["b", [{ text: "[2]" }]]]));
+  assert.deepEqual([applied, skipped], [["b"], []]);
 });

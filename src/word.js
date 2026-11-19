@@ -9,7 +9,7 @@ import {
   emptyStore, storeToXml, storeFromXml, newId, citeTitle, findMarkers, mayTouch, plan, paragraphsOf,
 } from "./model.js";
 import { documentText, UserError } from "./messages.js";
-import { controlTexts, paragraphStyle, OoxmlError } from "./ooxml.js";
+import { controlTexts, paragraphStyle, OoxmlError, bookmarkNames, rewriteCitationTexts, runXml, runsText } from "./ooxml.js";
 
 // Hanging indent of bibliography entries, in points (1 cm).
 const HANG = 28.35;
@@ -110,7 +110,7 @@ export async function readControls(context) {
   const controls = ccs.map((cc, i) => (isCite(cc)
     ? { kind: "cite", tag: cc.tag, title: cc.title, current: texts[i].current, original: texts[i].original }
     : { kind: "bib", current: texts[i].current }));
-  return { ccs, controls, all: all.items };
+  return { ccs, controls, all: all.items, tracked };
 }
 
 function setFont(range, run) {
@@ -121,7 +121,6 @@ function setFont(range, run) {
 }
 
 const plain = (runs) => runs.every((r) => !r.italic && !r.bold && !r.superscript && !r.subscript);
-const textOf = (runs) => runs.map((r) => r.text).join("");
 
 /**
  * Replaces the text of a citation or a bibliography entry. Plain text is one
@@ -130,15 +129,11 @@ const textOf = (runs) => runs.map((r) => r.text).join("");
  * citations), so the count of writes is the cost.
  */
 function writeRuns(target, runs) {
-  if (plain(runs)) { target.insertText(textOf(runs), "Replace"); return; }
+  if (plain(runs)) { target.insertText(runsText(runs), "Replace"); return; }
   runs.forEach((run, i) => setFont(target.insertText(run.text, i ? "End" : "Replace"), run));
 }
 
 const escapeXml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const runXml = (run) => {
-  const pr = [run.bold && "<w:b/>", run.italic && "<w:i/>", run.smallCaps && "<w:smallCaps/>", run.superscript && '<w:vertAlign w:val="superscript"/>', run.subscript && '<w:vertAlign w:val="subscript"/>'].filter(Boolean).join("");
-  return run.text.split("\t").map((t, i) => (i ? `<w:r>${pr && `<w:rPr>${pr}</w:rPr>`}<w:tab/></w:r>` : "") + (t ? `<w:r>${pr && `<w:rPr>${pr}</w:rPr>`}<w:t xml:space="preserve">${escapeXml(t)}</w:t></w:r>` : "")).join("");
-};
 
 /**
  * A bibliography's entries as one OOXML package, each a paragraph with a
@@ -149,7 +144,7 @@ const runXml = (run) => {
  */
 function entriesOoxml(entries, style) {
   const props = `<w:pPr>${style ? `<w:pStyle w:val="${escapeXml(style)}"/>` : ""}<w:ind w:left="${Math.round(HANG * 20)}" w:hanging="${Math.round(HANG * 20)}"/></w:pPr>`;
-  const body = entries.map((runs) => `<w:p>${props}${runs.map(runXml).join("")}</w:p>`).join("");
+  const body = entries.map((runs) => `<w:p>${props}${runs.map((run) => runXml(run)).join("")}</w:p>`).join("");
   return `<pkg:package xmlns:pkg="http://schemas.microsoft.com/office/2006/xmlPackage"><pkg:part pkg:name="/_rels/.rels" pkg:contentType="application/vnd.openxmlformats-package.relationships+xml"><pkg:xmlData><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships></pkg:xmlData></pkg:part><pkg:part pkg:name="/word/document.xml" pkg:contentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"><pkg:xmlData><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document></pkg:xmlData></pkg:part></pkg:package>`;
 }
 
@@ -236,6 +231,71 @@ async function withTracking(context, mode, fn) {
 export const CHUNK = 30;
 
 /**
+ * Citations rewritten by one whole-body OOXML write instead of one write per
+ * control when at least this many need it. Rewriting the whole body changed
+ * 4,000 citations in 5.5–6.9 s against 106–341 s one by one, with track
+ * changes off: the fixed cost is about one OOXML read, the write and one
+ * verification read. Below this count the per-control path is no slower.
+ */
+export const FAST_CITES_MIN = 500;
+
+// Word's own bookmarks start with an underscore; a person's own bookmarks do
+// not. A whole-body write has grown a person's bookmark by a character per
+// write, so the fast path stays off while the document holds any of theirs.
+// Images and other embedded objects pass through byte-identical, but this is
+// untested with them, with threaded comments and with co-authoring.
+const personBookmark = (name) => !name.startsWith("_");
+
+/**
+ * Whether the fast whole-body path may run: no tracked changes, nothing but
+ * citations to write, and enough of them. Bibliographies keep their own
+ * one-piece path, and leftovers their deletes.
+ */
+export function fastEligible({ tracked, bibs, removes, cites }) {
+  return !tracked && !bibs && !removes && cites >= FAST_CITES_MIN;
+}
+
+/**
+ * Rewrites the citations in `rest` with one body OOXML write, then checks
+ * every rewritten control's text against what the plan wants. `planned`
+ * are all the plan's citations with their positions, `restCites` those
+ * still to write, and `rest` maps them to content control ids. Returns the citations that still need
+ * the per-control path: all of them when the fast path does not apply or
+ * its write fails, the mismatches when verification finds any. Never
+ * throws: the per-control path below writes what is left.
+ */
+async function fastCites(context, ccs, controls, planned, restCites, rest) {
+  try {
+    const doc = context.document;
+    doc.load("changeTrackingMode");
+    await context.sync();
+    if (doc.changeTrackingMode !== "Off") return rest;
+    const oo = doc.body.getOoxml();
+    await context.sync();
+    if (bookmarkNames(oo.value).some(personBookmark)) return rest;
+    const rewrites = new Map(restCites.map((c) => [ccs[c.index].tag, c.runs]));
+    const { xml, applied, skipped } = rewriteCitationTexts(oo.value, rewrites);
+    if (skipped.length || applied.length !== restCites.length) return rest;
+    doc.body.insertOoxml(xml, "Replace");
+    await context.sync();
+    // Every citation the plan writes, including the fresh ones already
+    // written above, reads back as planned; the rest stays as it was.
+    const wantRuns = new Map(planned.map((c) => [c.index, runsText(c.runs)]));
+    const want = new Map(ccs.map((cc, i) => [cc.id, wantRuns.has(i) ? wantRuns.get(i) : controls[i].current]));
+    const check = doc.body.contentControls;
+    check.load("items/id,items/tag,items/text");
+    await context.sync();
+    const missing = new Set(check.items
+      .filter((cc) => isOurs(cc) && want.has(cc.id) && want.get(cc.id) !== cc.text)
+      .map((cc) => cc.id));
+    return rest.filter((c) => missing.has(c.id));
+  } catch (e) {
+    console.error(e);
+    return rest;
+  }
+}
+
+/**
  * Brings numbers and bibliographies up to date. Citations in `fresh` (Word
  * content control ids) were just added by the person and follow the
  * document's track-changes mode. Everything else is derived and is written
@@ -246,10 +306,16 @@ export const CHUNK = 30;
  * `work`, for writeChunk; the pane writes it in batches while it stays
  * usable. A document left half written, by a closed pane or document, is put
  * right by the next refresh, which plans from what the document holds.
+ *
+ * With track changes off, no revisions, nothing but many citations to write
+ * and no person's bookmarks in the document, one whole-body OOXML write
+ * replaces the per-control writes instead, and every rewritten control's
+ * text is checked against the plan: what the check or the write leaves
+ * behind, the per-control path heals.
  */
 export async function refresh(context, session, { fresh = [], store } = {}) {
   store = store ?? await openStore(context, session);
-  const { ccs, controls, all } = await readControls(context);
+  const { ccs, controls, all, tracked } = await readControls(context);
   const { locale } = store.settings;
   const opts = { locale, bibEmpty: documentText(locale).bibEmpty };
   let p = plan(controls, store, session.renderer, opts);
@@ -268,14 +334,20 @@ export async function refresh(context, session, { fresh = [], store } = {}) {
   for (const c of own) writeRuns(ccs[c.index], c.runs);
   if (p.store) await saveStore(context, p.store);
   else if (own.length) await context.sync();
-  const rest = p.citations.filter((c) => !own.includes(c)).map((c) => ({ id: ccs[c.index].id, runs: c.runs }));
-  if (rest.length || bibs.length || p.removes.length) {
-    await writeUntracked(context, () => {
-      for (const i of p.removes) ccs[i].delete(false);
-      writeBibs();
-    });
+  const restCites = p.citations.filter((c) => !own.includes(c));
+  let rest = restCites.map((c) => ({ id: ccs[c.index].id, runs: c.runs }));
+  const total = rest.length;
+  if (total || bibs.length || p.removes.length) {
+    if (fastEligible({ tracked, bibs: bibs.length, removes: p.removes.length, cites: total })) {
+      rest = await fastCites(context, ccs, controls, p.citations, restCites, rest);
+    } else {
+      await writeUntracked(context, () => {
+        for (const i of p.removes) ccs[i].delete(false);
+        writeBibs();
+      });
+    }
   }
-  const work = { citations: rest, total: rest.length, done: 0 };
+  const work = { citations: rest, total, done: total - rest.length };
   // The order of the controls as this refresh leaves it, for the watcher.
   // Text writes change no tags, so this also holds when the first batch below fails.
   const removed = new Set(p.removes.map((i) => ccs[i]));

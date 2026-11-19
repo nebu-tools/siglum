@@ -1,10 +1,14 @@
 // Reads what Siglum needs out of OOXML, as Word's getOoxml returns it: the
-// texts of content controls and a paragraph's style. Works without Word.
+// texts of content controls, a paragraph's style, bookmark names, and a
+// surgical rewrite of citation texts that leaves every other byte alone.
+// Works without Word.
 //
 // The XML goes through a strict, namespace-aware parser. Elements are known
 // by namespace and local name, so any prefix bound to Word's namespace reads
 // the same as "w:". Input that is not well-formed, or that ends before its
 // root element does, throws an OoxmlError, and nothing is read from it.
+// The rewrite below scans text instead of parsing, so that untouched bytes
+// stay untouched; anything it does not fully understand it skips.
 
 import { SaxesParser } from "saxes";
 import { UserError } from "./messages.js";
@@ -225,4 +229,110 @@ export function paragraphStyle(ooxml) {
     },
   });
   return style;
+}
+
+/** The names of the bookmarkStart elements in `ooxml`, whatever prefix they use. */
+export function bookmarkNames(ooxml) {
+  const names = [];
+  const re = /<[\w.-]+:bookmarkStart\b[^>]*>/g;
+  let m;
+  while ((m = re.exec(ooxml))) {
+    const name = /(?:^|\s)[\w.-]+:name="([^"]*)"/.exec(m[0]);
+    if (name) names.push(name[1]);
+  }
+  return names;
+}
+
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Runs of citation text as OOXML, with `w` as the prefix bound to Word's
+ * namespace, as in runXml below. Word writes runs this shape itself.
+ */
+export const escapeXml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+export const runsText = (runs) => runs.map((r) => r.text).join("");
+export const runXml = (run, w = "w") => {
+  const pr = [run.bold && `<${w}:b/>`, run.italic && `<${w}:i/>`, run.smallCaps && `<${w}:smallCaps/>`, run.superscript && `<${w}:vertAlign ${w}:val="superscript"/>`, run.subscript && `<${w}:vertAlign ${w}:val="subscript"/>`].filter(Boolean).join("");
+  return run.text.split("\t").map((t, i) => (i ? `<${w}:r>${pr && `<${w}:rPr>${pr}</${w}:rPr>`}<${w}:tab/></${w}:r>` : "") + (t ? `<${w}:r>${pr && `<${w}:rPr>${pr}</${w}:rPr>`}<${w}:t xml:space="preserve">${escapeXml(t)}</${w}:t></${w}:r>` : "")).join("");
+};
+
+// Element locals that a rewritten citation's content must not hold. Anything
+// carrying text, revisions, fields, drawings, hyperlinks, bookmarks, nested
+// controls or paragraphs keeps the control on the per-control path.
+const REWRITE_DENY = ["ins", "del", "delText", "moveFrom", "moveFromRangeStart", "moveFromRangeEnd", "moveTo", "moveToRangeStart", "moveToRangeEnd", "cellIns", "cellDel", "cellMerge", "fldChar", "instrText", "drawing", "pict", "txbxContent", "AlternateContent", "tab", "br", "cr", "sym", "noBreakHyphen", "hyperlink", "sdt", "sdtPr", "sdtContent", "bookmarkStart", "bookmarkEnd", "commentRangeStart", "commentRangeEnd", "proofErr", "permStart", "permEnd", "p", "pPr", "sectPr", "tbl"];
+
+/**
+ * Rewrites the texts of citation controls directly in body OOXML, as the
+ * whole-body fast path does before one insertOoxml. `jobs` maps a control's
+ * tag to the runs its text becomes. Returns the rewritten package with, per
+ * tag, whether it was rewritten or why it was skipped.
+ *
+ * A control is rewritten only when its tag occurs exactly once, its content
+ * is one run with one text element and nothing from REWRITE_DENY, and it
+ * does not show its placeholder: everything else stays for the per-control
+ * path. Untouched bytes stay byte-identical, so images, comments, fields
+ * and other controls come through unchanged. Never throws on odd input:
+ * what it does not understand it skips.
+ */
+export function rewriteCitationTexts(ooxml, jobs) {
+  const found = new Map();
+  const census = /<([\w.-]+):tag\s+\1:val="([^"]*)"\s*(?:\/>|>)/g;
+  let m;
+  while ((m = census.exec(ooxml))) {
+    const list = found.get(m[2]) ?? [];
+    list.push({ prefix: m[1], start: m.index, end: m.index + m[0].length });
+    found.set(m[2], list);
+  }
+  const applied = [];
+  const skipped = [];
+  const edits = [];
+  for (const [tag, runs] of jobs) {
+    const skip = (reason) => skipped.push({ tag, reason });
+    const list = found.get(tag) ?? [];
+    if (list.length !== 1) { skip(list.length ? "duplicate" : "missing"); continue; }
+    const { prefix: P, start: tagStart, end: tagEnd } = list[0];
+    const openSdt = `<${P}:sdt`;
+    let sdtStart = -1;
+    for (let from = tagStart; ;) {
+      const i = ooxml.lastIndexOf(openSdt, from);
+      if (i < 0) break;
+      const c = ooxml[i + openSdt.length];
+      if (c === " " || c === ">" || c === "/") { sdtStart = i; break; }
+      from = i - 1;
+    }
+    if (sdtStart < 0) { skip("shape"); continue; }
+    const prStart = ooxml.indexOf(`<${P}:sdtPr`, sdtStart);
+    const prEnd = prStart < 0 ? -1 : ooxml.indexOf(`</${P}:sdtPr>`, prStart);
+    if (prStart < 0 || prEnd < 0 || !(prStart < tagStart && tagEnd <= prEnd)) { skip("shape"); continue; }
+    const plc = /<[\w.-]+:showingPlcHdr\b[^>]*>/.exec(ooxml.slice(prStart, prEnd));
+    if (plc && !/(?:^|\s)[\w.-]+:val="(?:0|false|off)"/.test(plc[0])) { skip("placeholder"); continue; }
+    const cOpen = ooxml.indexOf(`<${P}:sdtContent`, prEnd);
+    const cBodyStart = cOpen < 0 ? -1 : ooxml.indexOf(">", cOpen) + 1;
+    const cEnd = cBodyStart <= 0 ? -1 : ooxml.indexOf(`</${P}:sdtContent>`, cBodyStart);
+    if (cOpen < 0 || cBodyStart <= 0 || cEnd < 0) { skip("shape"); continue; }
+    const region = ooxml.slice(cBodyStart, cEnd);
+    const sdtRe = new RegExp(`<${escapeRegExp(P)}:sdt(?:[\\s>/])`);
+    if (sdtRe.test(region)) { skip("nested"); continue; }
+    if (REWRITE_DENY.some((n) => region.includes(`<${P}:${n}`))) { skip("complex"); continue; }
+    const tRe = new RegExp(`<${escapeRegExp(P)}:t(?:[\\s>/])`, "g");
+    if ([...region.matchAll(tRe)].length !== 1) { skip("complex"); continue; }
+    const tAt = region.search(tRe);
+    tRe.lastIndex = 0;
+    let rStart = -1;
+    for (let from = tAt; ;) {
+      const i = region.lastIndexOf(`<${P}:r`, from);
+      if (i < 0) break;
+      const c = region[i + `<${P}:r`.length];
+      if (c === " " || c === ">" || c === "/") { rStart = i; break; }
+      from = i - 1;
+    }
+    const rEnd = rStart < 0 ? -1 : region.indexOf(`</${P}:r>`, tAt);
+    if (rStart < 0 || rEnd < 0) { skip("complex"); continue; }
+    edits.push({ start: cBodyStart + rStart, end: cBodyStart + rEnd + `</${P}:r>`.length, xml: runs.map((run) => runXml(run, P)).join("") });
+    applied.push(tag);
+  }
+  edits.sort((a, b) => b.start - a.start);
+  let xml = ooxml;
+  for (const e of edits) xml = xml.slice(0, e.start) + e.xml + xml.slice(e.end);
+  return { xml, applied, skipped };
 }
