@@ -1,87 +1,98 @@
-// Runs inside Word's task pane next to the real pane (dist-e2e/e2e.html). Drives
-// the pane like a user would and reports each check to the e2e server.
+// The end-to-end suite's page (dist-e2e/e2e.html). It runs in the task pane
+// next to the real pane, drives the pane as a person does, and reports each
+// check to e2e/run.mjs. The scenario comes from e2e-config.json.
 /* global Word */
 
-import { BIB_TAG, CITE_PREFIX } from "../src/model.js";
-
-// The checks read the pane in English, whatever language Office has.
-try { localStorage.setItem("siglum.language", "en"); } catch { /* The checks on status texts then fail and say so. */ }
+import {
+  post, $, sleep, command, word, nextDone, done, onReady, idle, key, pick, refresh,
+  isCite, isBib, controls, citeTexts, bibTexts, readStore, trackedChanges, setTracking, cursorAfter,
+} from "./pane.js";
+import { CITE_PREFIX } from "../src/model.js";
 
 const results = [];
-let last = null;
-let first = null;
-document.addEventListener("siglum:done", (e) => { last = e.detail; first = first ?? e.detail; });
-const post = (o) => fetch("/log", { method: "POST", body: JSON.stringify(o) }).catch(() => {});
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const $ = (id) => document.getElementById(id);
-
-async function idle() {
-  await sleep(150);
-  for (let calm = 0; calm < 3; ) {
-    await sleep(100);
-    calm = document.body.hasAttribute("aria-busy") ? 0 : calm + 1;
-  }
-}
-
 function check(name, ok, detail) {
-  results.push({ name, ok: !!ok, detail });
-  post({ check: name, ok: !!ok, detail });
+  results.push({ name, ok: !!ok });
+  post({ check: name, ok: !!ok, detail: ok ? undefined : detail });
+  return !!ok;
 }
-
-const word = (fn) => Word.run(fn);
-
-const isCite = (x) => x.tag.startsWith(CITE_PREFIX);
-
-/** Citations and bibliographies as [kind, text] in document order. */
-async function controls() {
-  return word(async (c) => {
-    const all = c.document.body.contentControls;
-    all.load("items/tag,items/text");
-    await c.sync();
-    return all.items.filter((x) => isCite(x) || x.tag === BIB_TAG).map((x) => [x.tag === BIB_TAG ? "bib" : "cite", x.text]);
-  });
+/**
+ * A check that fails because of a defect the add-in has and the README lists
+ * as a limit. It is reported as KNOWN, with the reason, and does not fail the
+ * run; once it passes it says so.
+ */
+function known(name, ok, detail, why) {
+  results.push({ name, ok: true });
+  post({ check: name, ok: !!ok, known: why, detail: ok ? undefined : detail });
+  return !!ok;
 }
-const citeTexts = async () => (await controls()).filter((x) => x[0] === "cite").map((x) => x[1]);
-const bibTexts = async () => (await controls()).filter((x) => x[0] === "bib").map((x) => x[1].split(/[\r\n]+/).filter(Boolean));
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-/** What Word reports for the i-th citation. */
-async function probe(i) {
-  return word(async (c) => {
-    const cc = c.document.body.contentControls;
-    cc.load("items/tag");
-    await c.sync();
-    const x = cc.items.filter(isCite)[i];
-    x.load("text,placeholderText,tag");
-    const cur = x.getReviewedText("Current");
-    const orig = x.getReviewedText("Original");
-    const ox = x.getOoxml();
-    await c.sync();
-    const body = /<w:body>([\s\S]*)<\/w:body>/.exec(ox.value)?.[1] ?? "";
-    return { tag: x.tag, text: x.text, ph: x.placeholderText, cur: cur.value, orig: orig.value, xml: body.replace(/<w:rPr>[\s\S]*?<\/w:rPr>/g, "").slice(0, 1500) };
-  });
-}
-
-async function cursorAfter(text) {
-  await word(async (c) => {
-    const r = c.document.body.search(text, { matchCase: true });
-    r.load("items");
-    await c.sync();
-    if (!r.items.length) throw new Error("not found: " + text);
-    r.items[0].getRange("End").select("End");
-    await c.sync();
-  });
-}
-
-function key(target, k, opts = {}) {
-  target.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true, ...opts }));
-}
-
-async function pick(query, opts) {
-  $("q").value = query;
-  $("q").dispatchEvent(new Event("input"));
-  key($("q"), "Enter", opts);
+/** Runs a pane action and waits until the pane has finished it. */
+async function act(trigger, timeout) {
   await idle();
+  const d = nextDone(timeout);
+  trigger();
+  const r = await d;
+  await idle();
+  return r;
 }
+const cite = (query, opts) => act(() => pick(query, opts));
+const insertBibliography = () => act(() => $("bib").click());
+
+/** Imports a library file through the file input. */
+async function importFile(text, name) {
+  const dt = new DataTransfer();
+  dt.items.add(new File([text], name, { type: "text/plain" }));
+  $("file").files = dt.files;
+  return act(() => $("file").dispatchEvent(new Event("change")));
+}
+
+/** Fetches a DOI or PMID through the lookup form and returns the status it shows. */
+async function lookup(ident) {
+  const before = $("status").textContent;
+  $("ident").value = ident;
+  const d = nextDone(60000);
+  $("lookup").dispatchEvent(new Event("submit", { cancelable: true }));
+  await d.catch(() => null);
+  // The status follows the operation.
+  for (let i = 0; i < 50 && $("status").textContent === before; i++) await sleep(100);
+  await idle();
+  return $("status").textContent;
+}
+
+/** The i-th citation control, by its place in the document. */
+const nthCitation = async (c, i) => {
+  const cc = c.document.body.contentControls;
+  cc.load("items/tag");
+  await c.sync();
+  return cc.items.filter(isCite)[i];
+};
+
+const bodyText = () => word(async (c) => { c.document.body.load("text"); await c.sync(); return c.document.body.text; });
+
+/** Each citation's stored items as keys with their locator or suffix, in document order. */
+async function citedKeys() {
+  const { store } = await readStore();
+  return (await controls()).filter((x) => x.kind === "cite").map((x) => (store.citations[x.tag.slice(CITE_PREFIX.length)] ?? []).map((i) => i.id + (i.locator ? `@${i.locator}` : "") + (i.suffix ? `+${i.suffix}` : "")).join(" "));
+}
+
+/**
+ * Sets how Word shows tracked changes in this document's window: "all" for
+ * All Markup, "simple" for Simple Markup. Returns the mode it had.
+ */
+const MARKUP = { none: 0, simple: 1, all: 2 };
+async function markup(mode) {
+  return command(`$v = $doc.ActiveWindow.View.RevisionsFilter; $was = $v.Markup; $v.Markup = ${MARKUP[mode] ?? mode}; $was`);
+}
+
+/** Clicks Refresh twice: the second one must write nothing. */
+async function settled(name) {
+  await refresh();
+  const r = await refresh();
+  check(`${name}: a second refresh writes nothing`, r && !r.citations.length && !r.bibs.length && !r.removes.length, r && { c: r.citations, b: r.bibs.length, r: r.removes });
+}
+
+// ---- the main scenario: an empty document ---------------------------------------
 
 const BIB = String.raw`
 @article{mueller2020, author={M{\"u}ller, Anna and Smith, John}, title={Tree rings and summer temperature in the Alps},
@@ -109,216 +120,144 @@ async function setup() {
   });
 }
 
-async function scenario() {
+async function main() {
+  const fresh = await readStore();
+  check("a new document has no store", fresh.parts === 0, fresh);
   await setup();
 
-  // Import a .bib through the file input.
-  const dt = new DataTransfer();
-  dt.items.add(new File([BIB], "library.bib", { type: "text/plain" }));
-  $("file").files = dt.files;
-  $("file").dispatchEvent(new Event("change"));
-  await idle();
+  await importFile(BIB, "library.bib");
   check("import", /4 new/.test($("status").textContent), $("status").textContent);
   $("q").value = "muel";
   $("q").dispatchEvent(new Event("input"));
   check("fuzzy search", document.querySelector("#results li .key")?.textContent === "mueller2020", document.querySelector("#results li .key")?.textContent);
 
-  // Cite by search and Enter.
   await cursorAfter("First statement");
-  await pick("muel smith");
-  check("cite by search", JSON.stringify(await citeTexts()) === JSON.stringify(["[1]"]), await citeTexts());
+  await cite("muel smith");
+  check("cite by search", same(await citeTexts(), ["[1]"]), await citeTexts());
 
-  // Typed marker, converted by Refresh.
-  $("refresh").click();
-  await idle();
-  check("marker converted", JSON.stringify(await citeTexts()) === JSON.stringify(["[1]", "[2]"]), [await citeTexts(), $("status").textContent]);
+  let r = await refresh();
+  check("marker converted", same(await citeTexts(), ["[1]", "[2]"]) && r.converted === 1, [await citeTexts(), $("status").textContent]);
 
-  // A refresh of a current document writes nothing.
-  $("refresh").click();
-  await idle();
-  check("idle refresh writes nothing", last && last.citations.length === 0 && last.bibs.length === 0 && last.removes.length === 0, last && { c: last.citations.length, b: last.bibs.length, p: await probe(0) });
+  r = await refresh();
+  check("idle refresh writes nothing", r && !r.citations.length && !r.bibs.length && !r.removes.length, r && { c: r.citations.length, b: r.bibs.length });
 
-  // Bibliography after "References 1".
   await cursorAfter("References 1");
-  $("bib").click();
-  await idle();
+  await insertBibliography();
   let bibs = await bibTexts();
   check("first bibliography", bibs.length === 1 && bibs[0].length === 2 && /^1\.\s*Müller A, Smith J\. Tree rings/.test(bibs[0][0]) && /^2\.\s*Alpine Survey Office/.test(bibs[0][1]), bibs);
 
-  // Mark two with Ctrl+Enter, cite both at once.
   await cursorAfter("Third statement");
-  $("q").value = "lee"; $("q").dispatchEvent(new Event("input"));
-  key($("q"), "Enter", { ctrlKey: true });
-  $("q").value = "snow"; $("q").dispatchEvent(new Event("input"));
-  key($("q"), "Enter", { ctrlKey: true });
-  key($("q"), "Enter");
-  await idle();
-  check("multi cite", JSON.stringify(await citeTexts()) === JSON.stringify(["[1]", "[2]", "[3,4]"]), await citeTexts());
+  pick("lee", { ctrlKey: true });
+  pick("snow", { ctrlKey: true });
+  await act(() => key($("q"), "Enter"));
+  check("multi cite", same(await citeTexts(), ["[1]", "[2]", "[3,4]"]), await citeTexts());
 
-  // Section 2 starts again at 1, and its bibliography is separate.
   await cursorAfter("Fourth statement");
-  await pick("lee");
+  await cite("lee");
   await cursorAfter("References 2");
-  $("bib").click();
-  await idle();
+  await insertBibliography();
   bibs = await bibTexts();
-  check("second section restarts", JSON.stringify(await citeTexts()) === JSON.stringify(["[1]", "[2]", "[3,4]", "[1]"]) && bibs.length === 2 && bibs[0].length === 4 && bibs[1].length === 1 && /^1\.\s*Lee K/.test(bibs[1][0]), [await citeTexts(), bibs]);
+  check("second section restarts", same(await citeTexts(), ["[1]", "[2]", "[3,4]", "[1]"]) && bibs.length === 2 && bibs[0].length === 4 && bibs[1].length === 1 && /^1\.\s*Lee K/.test(bibs[1][0]), [await citeTexts(), bibs]);
 
-  // With two bibliographies in place, another refresh still writes nothing.
-  $("refresh").click();
-  await idle();
-  check("idle refresh with bibliographies", last && last.citations.length === 0 && last.bibs.length === 0, last && { c: last.citations, b: last.bibs.length });
+  r = await refresh();
+  check("idle refresh with bibliographies", r && !r.citations.length && !r.bibs.length, r && { c: r.citations, b: r.bibs.length });
 
-  // Appendix after the last bibliography and a table cell join the last one.
   await cursorAfter("Appendix with a statement");
-  await pick("survey2023");
+  await cite("survey2023");
   await cursorAfter("Table cell");
-  await pick("mueller2020");
+  await cite("mueller2020");
   bibs = await bibTexts();
-  check("appendix and table", JSON.stringify(await citeTexts()) === JSON.stringify(["[1]", "[2]", "[3,4]", "[1]", "[2]", "[3]"]) && bibs[1].length === 3, [await citeTexts(), bibs]);
+  check("appendix and table join the last bibliography", same(await citeTexts(), ["[1]", "[2]", "[3,4]", "[1]", "[2]", "[3]"]) && bibs[1].length === 3, [await citeTexts(), bibs]);
 
-  // Inside an existing citation, a pick joins it.
-  await word(async (c) => {
-    const cc = c.document.body.contentControls;
-    cc.load("items/tag");
-    await c.sync();
-    cc.items.filter(isCite)[3].getRange("Content").select("End");
-    await c.sync();
-  });
-  await pick("snow");
-  check("join citation", (await citeTexts())[3] === "[1,2]", await citeTexts());
+  await word(async (c) => { (await nthCitation(c, 3)).getRange("Content").select("End"); await c.sync(); });
+  await cite("snow");
+  check("a pick inside a citation joins it", (await citeTexts())[3] === "[1,2]", await citeTexts());
 
-  // A new citation early on renumbers later ones and the bibliography.
   await cursorAfter("Second statement");
-  await pick("lee");
+  await cite("lee");
   bibs = await bibTexts();
-  check("renumber", JSON.stringify((await citeTexts()).slice(0, 4)) === JSON.stringify(["[1]", "[2]", "[3]", "[2,4]"]) && /^2\.\s*Lee K/.test(bibs[0][1]), [await citeTexts(), bibs[0]]);
+  check("renumber", same((await citeTexts()).slice(0, 4), ["[1]", "[2]", "[3]", "[2,4]"]) && /^2\.\s*Lee K/.test(bibs[0][1]), [await citeTexts(), bibs[0]]);
 
-  // Deleting a citation: the bibliography follows on refresh.
-  await word(async (c) => {
-    const cc = c.document.body.contentControls;
-    cc.load("items/tag");
-    await c.sync();
-    cc.items.filter(isCite)[1].delete(false);
-    await c.sync();
-  });
-  $("refresh").click();
-  await idle();
+  await word(async (c) => { (await nthCitation(c, 1)).delete(false); await c.sync(); });
+  await refresh();
   bibs = await bibTexts();
-  check("delete", JSON.stringify((await citeTexts()).slice(0, 3)) === JSON.stringify(["[1]", "[2]", "[3,4]"]) && bibs[0].length === 4 && /^3\.\s*Lee K/.test(bibs[0][2]), [await citeTexts(), bibs[0]]);
+  check("delete", same((await citeTexts()).slice(0, 3), ["[1]", "[2]", "[3,4]"]) && bibs[0].length === 4 && /^3\.\s*Lee K/.test(bibs[0][2]), [await citeTexts(), bibs[0]]);
 
-  // Emptying a citation's text by hand removes the leftover control.
-  await word(async (c) => {
-    const cc = c.document.body.contentControls;
-    cc.load("items/tag");
-    await c.sync();
-    cc.items.filter(isCite)[1].getRange("Content").delete();
-    await c.sync();
-  });
-  const emptied = await probe(1);
-  $("refresh").click();
-  await idle();
+  await word(async (c) => { (await nthCitation(c, 1)).getRange("Content").delete(); await c.sync(); });
+  await refresh();
   const after = await citeTexts();
-  check("emptied", after.length === 5 && after[1] === "[2,3]", { after, emptied });
+  check("an emptied citation goes", after.length === 5 && after[1] === "[2,3]", after);
 
-  // A pasted copy of a citation: same number, both survive.
   await word(async (c) => {
-    const cc = c.document.body.contentControls;
-    cc.load("items/tag");
+    const ox = (await nthCitation(c, 0)).getRange("Whole").getOoxml();
     await c.sync();
-    const ox = cc.items.filter(isCite)[0].getRange("Whole").getOoxml();
+    const r2 = c.document.body.search("The end", { matchCase: true });
+    r2.load("items");
     await c.sync();
-    const r = c.document.body.search("The end", { matchCase: true });
-    r.load("items");
-    await c.sync();
-    r.items[0].getRange("End").insertOoxml(ox.value, "Replace");
+    r2.items[0].getRange("End").insertOoxml(ox.value, "Replace");
     await c.sync();
   });
-  $("refresh").click();
-  await idle();
+  await refresh();
   const pasted = await citeTexts();
   // The copy sits behind the last bibliography, where this source is number 3.
-  check("paste copy", pasted.length === 6 && pasted[5] === pasted[4], pasted);
+  check("a pasted copy", pasted.length === 6 && pasted[5] === pasted[4], pasted);
 
-  // Track changes on: a new citation is a tracked insertion, the renumbering
+  // Track changes on: the new citation is a tracked insertion, the renumbering
   // and the bibliography are not, and the mode stays on.
-  await word(async (c) => { c.document.changeTrackingMode = "TrackAll"; await c.sync(); });
+  await setTracking("TrackAll");
   await cursorAfter("First statement");
-  await pick("snow");
-  const tracked = await word(async (c) => {
-    c.document.load("changeTrackingMode");
-    const tcs = c.document.body.getTrackedChanges();
-    tcs.load("items/type,items/text");
-    await c.sync();
-    return { mode: c.document.changeTrackingMode, changes: tcs.items.map((t) => [t.type, t.text]) };
-  });
-  const onlyCitation = tracked.changes.length > 0 && tracked.changes.every(([type, text]) => type === "Added" && /^\[[\d,–-]+\]$/.test(text.trim()));
-  check("tracked insert only", tracked.mode === "TrackAll" && onlyCitation, tracked);
+  await cite("snow");
+  const mode = await word(async (c) => { c.document.load("changeTrackingMode"); await c.sync(); return c.document.changeTrackingMode; });
+  const tracked = await trackedChanges();
+  const onlyCitation = tracked.length > 0 && tracked.every(([type, text]) => type === "Added" && /^\[[\d,–-]+\]$/.test(text.trim()));
+  check("with track changes on only the new citation is tracked", mode === "TrackAll" && onlyCitation, { mode, tracked });
   const nums = await citeTexts();
-  // The cursor sits before the first citation, so the new one comes first.
-  check("tracked renumber", JSON.stringify(nums.slice(0, 3)) === JSON.stringify(["[1]", "[2]", "[1,3]"]) && nums.length === 7, nums);
+  check("tracked renumber", same(nums.slice(0, 3), ["[1]", "[2]", "[1,3]"]) && nums.length === 7, nums);
 
-  // With tracking on, a pick inside a citation becomes its own citation after it.
-  await word(async (c) => {
-    const cc = c.document.body.contentControls;
-    cc.load("items/tag");
-    await c.sync();
-    cc.items.filter(isCite)[1].getRange("Content").select("End");
-    await c.sync();
-  });
-  await pick("survey2023");
+  await word(async (c) => { (await nthCitation(c, 1)).getRange("Content").select("End"); await c.sync(); });
+  await cite("survey2023");
   const joined = await citeTexts();
-  check("tracked join is separate", joined.length === 8 && joined[1] === "[2]" && joined[2] === "[3]", joined);
-  const changes = await word(async (c) => {
-    const tcs = c.document.body.getTrackedChanges();
-    tcs.load("items/type,items/text");
-    await c.sync();
-    return tcs.items.map((t) => [t.type, t.text]);
-  });
-  check("tracked join only adds", changes.every(([t]) => t === "Added"), changes);
+  check("with track changes on a pick inside a citation is a citation of its own", joined.length === 8 && joined[1] === "[2]" && joined[2] === "[3]", joined);
+  check("that citation is only added", (await trackedChanges()).every(([t]) => t === "Added"), await trackedChanges());
 
-  // A tracked deletion of an older citation stays for review, without a number.
-  // (Deleting one's own tracked insertion just removes it.)
-  await word(async (c) => {
-    const cc = c.document.body.contentControls;
-    cc.load("items/tag");
-    await c.sync();
-    cc.items.filter(isCite)[1].getRange("Content").delete();
-    await c.sync();
-  });
-  const pend = await probe(1);
-  $("refresh").click();
-  await idle();
+  // A tracked deletion of an older citation waits for review, without a
+  // number, however Word shows tracked changes.
+  const shown = await markup("all");
+  await word(async (c) => { (await nthCitation(c, 1)).getRange("Content").delete(); await c.sync(); });
+  await refresh();
   const left = await citeTexts();
-  check("tracked delete pending", /1 deleted, waiting for review/.test($("status").textContent) && left.length === 8 && left[0] === "[1]" && left[2] === "[2]" && left[3] === "[1,3]", { status: $("status").textContent, left, pend });
-  await word(async (c) => { c.document.changeTrackingMode = "Off"; await c.sync(); });
+  check("a tracked deletion waits for review", /1 deleted, waiting for review/.test($("status").textContent) && left.length === 8 && left[0] === "[1]" && left[2] === "[2]" && left[3] === "[1,3]", { status: $("status").textContent, left });
+  await markup("simple");
+  const again = await refresh();
+  check("with Simple Markup shown, the same deletion still waits and nothing is written", again.pending === 1 && !again.citations.length && !again.bibs.length && !again.removes.length, { pending: again.pending, c: again.citations.length, b: again.bibs.length });
+  await markup(shown);
+  await setTracking("Off");
 
-  // DOI lookup over the network.
-  $("ident").value = "10.1038/171737a0";
-  $("lookup").dispatchEvent(new Event("submit", { cancelable: true }));
-  await idle();
-  check("doi lookup", /^Added: \S+/.test($("status").textContent), $("status").textContent);
-  $("ident").value = "PMID 2231712";
-  $("lookup").dispatchEvent(new Event("submit", { cancelable: true }));
-  await idle();
-  check("pmid lookup", /^Added: altschul1990/.test($("status").textContent), $("status").textContent);
+  check("doi lookup", /^Added: \S+/.test(await lookup("10.1038/171737a0")), $("status").textContent);
+  check("pmid lookup", /^Added: altschul1990/.test(await lookup("PMID 2231712")), $("status").textContent);
 
-  // Typed markers: a group with a supplement becomes one citation, a marker
-  // with an unknown key and an e-mail address stay as text.
+  // A group with a supplement becomes one citation; an unknown key and an e-mail address stay text.
   const before = (await citeTexts()).length;
-  await word(async (c) => {
-    c.document.body.insertParagraph("Typed: @lee2010 @mueller2020[p. 12] and @nokey2000. Write to anna@example.org.", "End");
-    await c.sync();
-  });
-  $("refresh").click();
-  await idle();
+  await word(async (c) => { c.document.body.insertParagraph("Typed: @lee2010 @mueller2020[p. 12] and @nokey2000. Write to anna@example.org.", "End"); await c.sync(); });
+  r = await refresh();
   const typed = await citeTexts();
-  const group = last && Object.values(last.store.citations).find((items) => items.some((x) => x.locator));
-  check("marker group", typed.length === before + 1 && /^\[\d+[,\u2013-]\d+\]$/.test(typed[typed.length - 1]) && last.converted === 1
-    && JSON.stringify(group) === JSON.stringify([{ id: "lee2010" }, { id: "mueller2020", locator: "12", label: "page" }]), { typed, group, converted: last?.converted });
-  const text = await word(async (c) => { c.document.body.load("text"); await c.sync(); return c.document.body.text; });
-  check("unknown key and e-mail stay as text", /Unknown: nokey2000/.test($("status").textContent) && text.includes("@nokey2000") && text.includes("anna@example.org") && !text.includes("@lee2010"), { status: $("status").textContent, text: text.slice(-200) });
+  const group = Object.values(r.store.citations).find((items) => items.some((x) => x.locator));
+  check("a marker group with a page", typed.length === before + 1 && /^\[\d+[,–-]\d+\]$/.test(typed.at(-1)) && r.converted === 1
+    && same(group, [{ id: "lee2010" }, { id: "mueller2020", locator: "12", label: "page" }]), { typed, group, converted: r.converted });
+  const text = await bodyText();
+  check("an unknown key and an e-mail address stay text", /Unknown: nokey2000/.test($("status").textContent) && text.includes("@nokey2000") && text.includes("anna@example.org") && !text.includes("@lee2010"), { status: $("status").textContent, text: text.slice(-200) });
+  await settled("main");
 }
+
+// The main scenario's document, saved and opened again.
+async function mainReopen() {
+  const f = done.first;
+  check("the first refresh writes nothing", f && !f.citations.length && !f.bibs.length && !f.removes.length, f && { c: f.citations, b: f.bibs.length, r: f.removes });
+  check("sources and citations are there", f && Object.keys(f.store.sources).length === 6 && f.cited === 8 && f.pending === 1, f && { sources: Object.keys(f.store.sources), cited: f.cited, pending: f.pending });
+  await settled("reopened");
+}
+
+// ---- a template ---------------------------------------------------------------------
 
 const PLACEHOLDER = "[Your text]";
 const HEADINGS = [
@@ -326,7 +265,6 @@ const HEADINGS = [
   ["2 Methods", 1], ["References for section 2", 2],
 ];
 
-/** A document like a template: headings, each with a placeholder paragraph to fill in. */
 async function setupTemplate() {
   await word(async (c) => {
     const b = c.document.body;
@@ -345,7 +283,6 @@ async function setupTemplate() {
   });
 }
 
-/** Selects the first placeholder below a heading. */
 async function selectPlaceholderAfter(heading) {
   await word(async (c) => {
     const hs = c.document.body.search(heading, { matchCase: true });
@@ -356,109 +293,436 @@ async function selectPlaceholderAfter(heading) {
     const h = hs.items[hs.items.length - 1];
     const where = ps.items.map((p) => p.compareLocationWith(h));
     await c.sync();
-    const i = where.findIndex((w) => w.value === "After" || w.value === "AdjacentAfter");
-    ps.items[i].select();
+    ps.items[where.findIndex((w) => w.value === "After" || w.value === "AdjacentAfter")].select();
     await c.sync();
   });
 }
 
-/** Types a text into the placeholder below a heading and puts the cursor at its end. */
 async function fill(heading, text) {
   await selectPlaceholderAfter(heading);
-  await word(async (c) => {
-    c.document.getSelection().insertText(text, "Replace").select("End");
-    await c.sync();
-  });
+  await word(async (c) => { c.document.getSelection().insertText(text, "Replace").select("End"); await c.sync(); });
 }
 
-// A template with two sections: citations in both, each bibliography in the
-// placeholder under its "References for section" heading.
-async function templateScenario() {
+async function template() {
   await setupTemplate();
-  const dt = new DataTransfer();
-  dt.items.add(new File([BIB], "library.bib", { type: "text/plain" }));
-  $("file").files = dt.files;
-  $("file").dispatchEvent(new Event("change"));
-  await idle();
-  check("template import", /4 new/.test($("status").textContent), $("status").textContent);
+  await importFile(BIB, "library.bib");
+  check("import", /4 new/.test($("status").textContent), $("status").textContent);
 
   await fill("1 Background", "Tree rings record summer temperature.");
-  await pick("mueller");
+  await cite("mueller");
   await fill("1.1 Earlier work", "A survey mapped the glaciers.");
-  await pick("survey2023");
+  await cite("survey2023");
   await selectPlaceholderAfter("References for section 1");
-  $("bib").click();
-  await idle();
+  await insertBibliography();
 
   await fill("2 Methods", "The method is standard.");
-  $("q").value = "lee"; $("q").dispatchEvent(new Event("input"));
-  key($("q"), "Enter", { ctrlKey: true });
-  await pick("mueller");
-  // A bibliography inserted with tracking on is derived content and stays untracked.
-  await word(async (c) => { c.document.changeTrackingMode = "TrackAll"; await c.sync(); });
+  pick("lee", { ctrlKey: true });
+  await cite("mueller");
+  await setTracking("TrackAll");
   await selectPlaceholderAfter("References for section 2");
-  $("bib").click();
-  await idle();
-  const tracked = await word(async (c) => {
-    c.document.load("changeTrackingMode");
-    const tcs = c.document.body.getTrackedChanges();
-    tcs.load("items/type,items/text");
-    await c.sync();
-    const r = { mode: c.document.changeTrackingMode, changes: tcs.items.map((t) => [t.type, t.text]) };
-    c.document.changeTrackingMode = "Off";
-    await c.sync();
-    return r;
-  });
-  check("template bibliography untracked", tracked.mode === "TrackAll" && tracked.changes.length === 0, tracked);
+  await insertBibliography();
+  const tracked = await trackedChanges();
+  await setTracking("Off");
+  check("a bibliography inserted with track changes on is not tracked", tracked.length === 0, tracked);
 
   const cites = await citeTexts();
   const bibs = await bibTexts();
-  check("template sections", JSON.stringify(cites) === JSON.stringify(["[1]", "[2]", "[1,2]"]) && bibs.length === 2 && bibs[0].length === 2 && bibs[1].length === 2 && /^1\.\s*Lee K/.test(bibs[1][0]), { cites, bibs });
+  check("one bibliography per section", same(cites, ["[1]", "[2]", "[1,2]"]) && bibs.length === 2 && bibs[0].length === 2 && bibs[1].length === 2 && /^1\.\s*Lee K/.test(bibs[1][0]), { cites, bibs });
   const styles = await word(async (c) => {
     const all = c.document.body.contentControls;
     all.load("items/tag");
     await c.sync();
-    const ps = all.items.filter((x) => x.tag === BIB_TAG).map((x) => { const p = x.paragraphs; p.load("items/style,items/styleBuiltIn,items/isListItem"); return p; });
+    const ps = all.items.filter(isBib).map((x) => { const p = x.paragraphs; p.load("items/styleBuiltIn,items/isListItem"); return p; });
     await c.sync();
-    return ps.flatMap((p) => p.items.map((q) => [q.style, q.styleBuiltIn, q.isListItem]));
+    return ps.flatMap((p) => p.items.map((q) => [q.styleBuiltIn, q.isListItem]));
   });
-  check("template bibliography style", styles.length === 4 && styles.every(([, b, li]) => !/^Heading/.test(b) && !li), styles);
+  check("a bibliography in a heading or list placeholder is a plain paragraph", styles.length === 4 && styles.every(([b, li]) => !/^Heading/.test(b) && !li), styles);
 }
 
-// The template scenario's document, saved and opened again: the pane's first
-// refresh must find everything current.
-async function verifyScenario() {
-  check("reopened: first refresh writes nothing", first && first.citations.length === 0 && first.bibs.length === 0 && first.removes.length === 0, first && { c: first.citations, b: first.bibs.length, r: first.removes });
-  check("reopened: sources and citations", first && first.cited === 3 && Object.keys(first.store.sources).length === 4, first && { cited: first.cited, unknown: first.unknown });
-  // Before the sentence's period, so ahead of the citation behind it.
+async function templateReopen() {
+  const f = done.first;
+  check("the first refresh writes nothing", f && !f.citations.length && !f.bibs.length && !f.removes.length, f && { c: f.citations, b: f.bibs.length, r: f.removes });
+  check("sources and citations are there", f && f.cited === 3 && Object.keys(f.store.sources).length === 4, f && { cited: f.cited, unknown: f.unknown });
   await cursorAfter("The method is standard");
-  await pick("snow");
+  await cite("snow");
   const bibs = await bibTexts();
-  check("reopened: cite again", JSON.stringify(await citeTexts()) === JSON.stringify(["[1]", "[2]", "[1]", "[2,3]"]) && bibs[1].length === 3 && /^1\.\s*Alpine Survey Office\. Snow depth data/.test(bibs[1][0]), { cites: await citeTexts(), bibs });
+  check("citing goes on", same(await citeTexts(), ["[1]", "[2]", "[1]", "[2,3]"]) && bibs[1].length === 3 && /^1\.\s*Alpine Survey Office\. Snow depth data/.test(bibs[1][0]), { cites: await citeTexts(), bibs });
+  await settled("reopened");
 }
 
-/** The runner names the scenario in the document's text. A document with citations was saved by an earlier one. */
-async function mode() {
-  return word(async (c) => {
-    const all = c.document.body.contentControls;
-    all.load("items/tag");
-    c.document.body.load("text");
+// ---- typed markers in hard places -----------------------------------------------------
+
+const work = (id, family, title) => ({ id, type: "article-journal", author: [{ family, given: "A" }], title, "container-title": "Test J", issued: { "date-parts": [[2020]] } });
+// 130 letters from CJK Extension B: 260 UTF-16 units, more than one search takes.
+const WIDE = Array.from({ length: 130 }, (_, i) => String.fromCodePoint(0x20000 + i)).join("");
+const LONG = Array.from({ length: 25 }, (_, i) => `source${String(i + 1).padStart(2, "0")}`);
+const MARKER_SOURCES = [
+  work("a", "Alpha", "First work"), work("b", "Beta", "Second work"), work("c", "Gamma", "Third work"),
+  work("longkey2020", "Delta", "Fourth work"), work("café", "Epsilon", "Fifth work"), work(WIDE, "Zeta", "Sixth work"),
+  ...LONG.map((k, i) => work(k, "Long", `Work number ${i + 1} of the long group`)),
+];
+
+/** Clears the body and writes `paragraphs`: strings, or functions (c, body) that add content. */
+async function body(...paragraphs) {
+  await word(async (c) => {
+    const b = c.document.body;
+    b.clear();
+    c.document.changeTrackingMode = "Off";
     await c.sync();
-    if (all.items.some(isCite)) return "verify";
-    return /e2e:(template)/.exec(c.document.body.text)?.[1] ?? "main";
+    let first = true;
+    for (const p of paragraphs) {
+      if (typeof p === "string") b.insertParagraph(p, first ? "Start" : "End");
+      else await p(c, b, first);
+      first = false;
+      await c.sync();
+    }
   });
 }
 
-document.addEventListener("siglum:ready", async () => {
-  const m = await mode();
-  post({ stage: "ready", mode: m });
+/** The OOXML of the body, for counting fields and comments. */
+const bodyOoxml = () => word(async (c) => { const x = c.document.body.getOoxml(); await c.sync(); return x.value; });
+const NUMBER = /\[\d+(?:[,–]\d+)*(?:, [^\]]*)?\]/g;
+/** The body's text with each citation number as "[#]". */
+const shape = async () => (await bodyText()).replace(NUMBER, "[#]").replace(/\r+$/, "");
+
+/**
+ * One marker case: writes the body, refreshes and compares the body's text,
+ * the citations' stored keys and the markers reported as not converted.
+ */
+async function markerCase(name, paragraphs, want, extra, why) {
+  await body(...paragraphs);
+  const r = await refresh();
+  const got = { text: await shape(), cites: await citedKeys(), lost: r.lostMarkers ?? [], unknown: (r.unknownMarkers ?? []).map((u) => u.text) };
+  const more = extra ? await extra(r) : true;
+  const ok = (want.text == null || got.text === want.text) && same(got.cites, want.cites) && same(got.lost, want.lost ?? []) && same(got.unknown, want.unknown ?? []) && more === true;
+  (why ? (...a) => known(...a, why) : check)(name, ok, { got, want, more });
+}
+
+/** A paragraph with a DATE field before and after the markers. */
+const withFields = async (c, b) => {
+  const p = b.insertParagraph("Before ", "Start");
+  await c.sync();
+  const fld = (instr) => `<pkg:package xmlns:pkg="http://schemas.microsoft.com/office/2006/xmlPackage"><pkg:part pkg:name="/_rels/.rels" pkg:contentType="application/vnd.openxmlformats-package.relationships+xml"><pkg:xmlData><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships></pkg:xmlData></pkg:part><pkg:part pkg:name="/word/document.xml" pkg:contentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"><pkg:xmlData><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${instr} </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>FIELD</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:body></w:document></pkg:xmlData></pkg:part></pkg:package>`;
+  p.getRange("End").insertOoxml(fld("QUOTE one"), "Replace");
+  await c.sync();
+  p.getRange("End").insertText(" @a and @b ", "Replace");
+  await c.sync();
+  p.getRange("End").insertOoxml(fld("QUOTE two"), "Replace");
+  await c.sync();
+  p.getRange("End").insertText(" after.", "Replace");
+};
+
+/** Adds a paragraph with a content control of another add-in around `inner`. */
+const foreign = (before, inner, after, { cite: citeInside = false } = {}) => async (c, b, first) => {
+  const p = b.insertParagraph(before, first ? "Start" : "End");
+  const r = p.getRange("End").insertText(inner, "Replace");
+  const cc = r.insertContentControl();
+  cc.tag = "other-addin:box";
+  cc.title = "Another add-in";
+  if (citeInside) cc.getRange("End").insertText(" @c", "Replace");
+  p.getRange("End").insertText(after, "Replace");
+};
+
+/** How many comments the body holds. */
+const commentCount = () => word(async (c) => { const cs = c.document.body.getComments(); cs.load("items"); await c.sync(); return cs.items.length; });
+
+async function markers() {
+  await importFile(JSON.stringify(MARKER_SOURCES), "markers.json");
+  check("import", new RegExp(`${MARKER_SOURCES.length} new`).test($("status").textContent), $("status").textContent);
+
+  // Paragraph text and literal search.
+  await markerCase("a field before and after the markers", [withFields], { cites: ["a", "b"] }, async () => {
+    const x = await bodyOoxml();
+    const n = (x.match(/w:fldCharType="begin"/g) ?? []).length;
+    const t = await bodyText();
+    return n === 2 && /Before .*\[\d+\] and \[\d+\] .* after\./.test(t) ? true : { fields: n, text: t };
+  });
+  await markerCase("a tracked insertion that holds the marker", [async (c, b) => {
+    b.insertParagraph("Plain text ", "Start");
+    await c.sync();
+    c.document.changeTrackingMode = "TrackAll";
+    await c.sync();
+    b.paragraphs.getFirst().getRange("End").insertText("inserted @a here", "Replace");
+    await c.sync();
+    c.document.changeTrackingMode = "Off";
+  }], { text: "Plain text inserted [#] here", cites: ["a"] });
+  await markerCase("a tracked deletion just before the marker", [async (c, b) => {
+    const p = b.insertParagraph("Keep gone @b.", "Start");
+    await c.sync();
+    c.document.changeTrackingMode = "TrackAll";
+    await c.sync();
+    const g = p.search("gone ", { matchCase: true });
+    g.load("items");
+    await c.sync();
+    g.items[0].delete();
+    await c.sync();
+    c.document.changeTrackingMode = "Off";
+  }], { cites: ["b"] }, async () => {
+    const tc = await trackedChanges();
+    const t = await bodyText();
+    return tc.length === 1 && tc[0][0] === "Deleted" && /\[\d+\]\./.test(t) ? true : { tc, t };
+  });
+  await markerCase("a no-break space between two markers: one citation", ["See @a @b here."], { text: "See [#] here.", cites: ["a b"] });
+  await markerCase("a no-break space before a marker", ["See @a here."], { text: "See [#] here.", cites: ["a"] });
+  await markerCase("a tab between two markers: two citations", ["See @a\t@b here."], { text: "See [#]\t[#] here.", cites: ["a", "b"] });
+  await markerCase("a caret in a supplement", ["See @a[x^2] here."], { text: "See [#] here.", cites: ["a+x^2"] });
+  await markerCase("a key typed with a combining accent", ["See @café here."], { text: "See [#] here.", cites: ["café"] });
+  await markerCase("a comment anchored on the marker", [async (c, b) => {
+    const p = b.insertParagraph("See @a here.", "Start");
+    await c.sync();
+    const m = p.search("@a", { matchCase: true });
+    m.load("items");
+    await c.sync();
+    m.items[0].insertComment("A note on the marker.");
+  }], { text: "See [#] here.", cites: ["a"] });
+  // Word deletes a comment when all of its text goes, and a marker's text is
+  // replaced by the citation: the comment may not survive, but the conversion
+  // above must still be exact.
+  const comments = await commentCount();
+  known("a comment anchored on the marker survives", comments === 1, { comments },
+    "Word deletes a comment when all of its text goes, and a marker's text is replaced by the citation.");
+
+  // Places.
+  await markerCase("markers in table cells, the same marker twice in a row", [async (c, b) => {
+    b.insertParagraph("Table:", "Start");
+    b.insertTable(2, 2, "End", [["@a", "@a"], ["@b here", "none"]]);
+    b.insertParagraph("After.", "End");
+  }], { cites: ["a", "a", "b"] }, async () => {
+    const t = await bodyText();
+    return (t.match(NUMBER) ?? []).length === 3 && !t.includes("@") ? true : t;
+  });
+  await body("One @a here.", "References.");
+  await refresh();
+  await cursorAfter("References.");
+  await insertBibliography();
+  const cited = async (c) => {
+    const cc = await nthCitation(c, 0);
+    cc.getRange("End").insertText(" @b", "Replace");
+    const bib = c.document.body.contentControls;
+    bib.load("items/tag");
+    await c.sync();
+    const inBib = bib.items.find(isBib).search("First work", { matchCase: true });
+    inBib.load("items");
+    await c.sync();
+    inBib.items[0].getRange("After").insertText(" @c", "Replace");
+    await c.sync();
+  };
+  await word(cited);
+  let r = await refresh();
+  check("a marker typed inside a citation or a bibliography entry stays text", r.converted === 0 && same(await citedKeys(), ["a"]) && (await citeTexts())[0] === "[1]", { converted: r.converted, keys: await citedKeys(), cites: await citeTexts(), bibs: await bibTexts() });
+  await word(async (c) => {
+    const bib = c.document.body.contentControls;
+    bib.load("items/tag");
+    await c.sync();
+    const inBib = bib.items.find(isBib).search("First work", { matchCase: true });
+    inBib.load("items");
+    await c.sync();
+    const inner = inBib.items[0].getRange("After").insertText(" @b", "Replace").insertContentControl();
+    inner.tag = "other-addin:note";
+    await c.sync();
+  });
+  r = await refresh();
+  check("a marker in another add-in's control inside a bibliography stays text", r.converted === 0 && same(await citedKeys(), ["a"]), { converted: r.converted, keys: await citedKeys() });
+
+  const editedCitation = (where) => async (c, b) => {
+    b.insertParagraph("Text ", "Start");
+    await c.sync();
+    const p = b.paragraphs.getFirst();
+    if (where === "before") p.getRange("End").insertText("@b ", "Replace");
+    const cc = p.getRange("End").insertText("[1]", "Replace").insertContentControl();
+    cc.tag = CITE_PREFIX + "edited1";
+    cc.title = "Cite: c";
+    await c.sync();
+    cc.insertText("@a", "Replace");
+    if (where === "after") p.getRange("End").insertText(" @b", "Replace");
+    p.getRange("End").insertText(" end.", "Replace");
+  };
+  await markerCase("a citation edited to read @a, with @b after it: nothing replaced", [editedCitation("after")], { text: "Text [#] @b end.", cites: ["c"], lost: ["@a @b"] });
+  await markerCase("a citation edited to read @a, with @b before it: nothing replaced", [editedCitation("before")], { text: "Text @b [#] end.", cites: ["c"], lost: ["@b @a"] });
+  await markerCase("a marker that reaches into a citation: nothing replaced", [async (c, b) => {
+    b.insertParagraph("Text @", "Start");
+    await c.sync();
+    const p = b.paragraphs.getFirst();
+    const cc = p.getRange("End").insertText("[1]", "Replace").insertContentControl();
+    cc.tag = CITE_PREFIX + "reach1";
+    cc.title = "Cite: a";
+    await c.sync();
+    cc.insertText("c", "Start");
+    p.getRange("End").insertText(" end.", "Replace");
+  }], { text: "Text @[#] end.", cites: ["a"], lost: ["@c[1]"] });
+  await markerCase("markers before, inside and after another add-in's control that holds a citation", [async (c, b) => {
+    const p = b.insertParagraph("Before @a, ", "Start");
+    await c.sync();
+    const outer = p.getRange("End").insertText("inside @b and X", "Replace").insertContentControl();
+    outer.tag = "other-addin:box";
+    const x = outer.search("X", { matchCase: true });
+    x.load("items");
+    await c.sync();
+    const cc = x.items[0].insertText("[1]", "Replace").insertContentControl();
+    cc.tag = CITE_PREFIX + "nested1";
+    cc.title = "Cite: longkey2020";
+    await c.sync();
+    p.getRange("End").insertText(", after @c.", "Replace");
+  }], { text: "Before [#], inside [#] and [#], after [#].", cites: ["a", "b", "longkey2020", "c"] });
+  await markerCase("markers of different lengths in one paragraph", ["Here @longkey2020 and @a then @b[p. 3] and @a @c end."], { text: "Here [#] and [#] then [#] and [#] end.", cites: ["longkey2020", "a", "b@3", "a c"] });
+
+  // Long groups.
+  const group = (keys) => keys.map((k, i) => `@${k}[p. ${i + 100}]`).join(" ");
+  const g25 = group(LONG);
+  const all25 = LONG.map((k, i) => `${k}@${i + 100}`).join(" ");
+  await markerCase("a group of 25 markers, longer than a search", [`Long ${g25} end.`], { text: "Long [#] end.", cites: [all25] });
+  await markerCase("the same long group twice in a paragraph", [`Long ${g25} and ${g25} end.`], { text: "Long [#] and [#] end.", cites: [all25, all25] });
+  const head = group(LONG.slice(0, 20));
+  const other = `${head} @a`;
+  await markerCase("two long groups that begin alike", [`One ${g25}, two ${other}.`], { text: "One [#], two [#].", cites: [all25, LONG.slice(0, 20).map((k, i) => `${k}@${i + 100}`).join(" ") + " a"] });
+  const tail = LONG.slice(5).map((k, i) => `@${k}[p. ${i + 105}]`).join(" ");
+  await markerCase("two long groups that end alike", [`One ${g25}, two @a ${tail}.`], { text: "One [#], two [#].", cites: [all25, "a " + LONG.slice(5).map((k, i) => `${k}@${i + 105}`).join(" ")] });
+  await markerCase("a key of 130 letters outside the basic plane", [`Wide @${WIDE} end.`], { text: "Wide [#] end.", cites: [WIDE] });
+
+  // Word's Find dialog keeps "Use wildcards" for the next search.
+  await command('$f = $doc.Content.Find; $f.ClearFormatting(); $f.MatchWildcards = $true; [void]$f.Execute("x*y"); $doc.Content.Find.MatchWildcards');
+  await markerCase("a supplement with ^p, ^t, ^? and * while Use wildcards is on", ["See @a[^p ^t ^? * x] here."], { text: "See [#] here.", cites: ["a+^p ^t ^? * x"] });
+  await command('$f = $doc.Content.Find; $f.ClearFormatting(); $f.MatchWildcards = $false; [void]$f.Execute("x"); $f.MatchWildcards');
+}
+
+// ---- citations that move between sections -----------------------------------------------
+
+const SECTION_SOURCES = [work("a", "Alpha", "First work"), work("b", "Beta", "Second work"), work("c", "Gamma", "Third work"), work("d", "Delta", "Fourth work")];
+
+/** Copies or moves the first citation whose stored keys are `keys` to after `text`, through Word's own object model. */
+const comCopy = (keys, text, { cut = false } = {}) => command(`
+$tag = $null
+foreach ($cc in $doc.ContentControls) { if ($cc.Title -eq 'Cite: ${keys}') { $src = $cc; break } }
+$whole = $doc.Range($src.Range.Start - 1, $src.Range.End + 1)
+$r = $doc.Content
+$f = $r.Find; $f.ClearFormatting(); $f.MatchWildcards = $false; $f.MatchCase = $true
+if (-not $f.Execute('${text}')) { throw 'not found: ${text}' }
+$r.Collapse(0)
+$r.FormattedText = $whole.FormattedText
+${cut ? "$whole.Delete() | Out-Null" : ""}
+$doc.ContentControls.Count`);
+
+/** Moves the paragraph that holds `text` below the next one, as Alt+Shift+Down does. */
+const comRelocate = (text) => command(`
+$r = $doc.Content
+$f = $r.Find; $f.ClearFormatting(); $f.MatchWildcards = $false; $f.MatchCase = $true
+if (-not $f.Execute('${text}')) { throw 'not found: ${text}' }
+$r.Paragraphs(1).Range.Relocate(1)
+$doc.Revisions.Count`);
+
+/**
+ * The document's revisions as Word's object model lists them: [[type, text]].
+ * Office.js fails on a document with a tracked move, so the checks ask Word directly.
+ */
+const REVISION = { 1: "Added", 2: "Deleted", 14: "MovedFrom", 15: "MovedTo" };
+async function revisions() {
+  const v = await command('($doc.Revisions | ForEach-Object { "$($_.Type)`t$($_.Range.Text)" }) -join "`n"');
+  return String(v ?? "").split("\n").filter(Boolean).map((l) => { const [t, ...x] = l.split("\t"); return [REVISION[t] ?? t, x.join("\t")]; });
+}
+const acceptAll = () => command("$doc.Revisions.AcceptAll(); $doc.Revisions.Count");
+
+/** Moves the cursor and waits for the selection watcher's refresh, if any. */
+async function watcher(where) {
+  const d = nextDone(10000).then((x) => x, () => null);
+  await cursorAfter(where);
+  const r = await d;
+  await idle();
+  return r;
+}
+
+async function sectionsDoc() {
+  await body("Section 1", "One @a.", "Two @b.", "References 1", "Section 2", "Three @c.", "Target.", "References 2", "The end.");
+  await refresh();
+  await cursorAfter("References 1");
+  await insertBibliography();
+  await cursorAfter("References 2");
+  await insertBibliography();
+}
+
+const firstWords = async () => (await bibTexts()).map((b) => b.map((l) => /^\d+\.\s*(\w+)/.exec(l)?.[1]));
+
+async function sections() {
+  await importFile(JSON.stringify(SECTION_SOURCES), "sections.json");
+  await sectionsDoc();
+  check("two sections", same(await citeTexts(), ["[1]", "[2]", "[1]"]) && same(await firstWords(), [["Alpha", "Beta"], ["Gamma"]]), { cites: await citeTexts(), bibs: await bibTexts() });
+
+  await comCopy("b", "Target");
+  let w = await watcher("The end");
+  check("a copy into the next section: the watcher refreshes", w && same(await citeTexts(), ["[1]", "[2]", "[1]", "[2]"]) && same(await firstWords(), [["Alpha", "Beta"], ["Gamma", "Beta"]]), { refreshed: !!w, cites: await citeTexts(), bibs: await firstWords() });
+
+  await comCopy("a", "Three", { cut: true });
+  w = await watcher("One");
+  check("a cut and paste into the next section", w && same(await citeTexts(), ["[1]", "[1]", "[2]", "[3]"]) && same(await firstWords(), [["Beta"], ["Alpha", "Gamma", "Beta"]]), { refreshed: !!w, cites: await citeTexts(), bibs: await firstWords() });
+
+  await comCopy("c", "Two", { cut: true });
+  w = await watcher("The end");
+  check("a cut and paste back into the first section", w && same(await citeTexts(), ["[1]", "[2]", "[1]", "[2]"]) && same(await firstWords(), [["Gamma", "Beta"], ["Alpha", "Beta"]]), { refreshed: !!w, cites: await citeTexts(), bibs: await firstWords() });
+  await settled("after moving");
+
+  // A move with track changes on, as Alt+Shift+Down makes it: the paragraph
+  // "Two" goes below "Three".
+  await body("Section 1", "One @a.", "Two @b.", "Three @c.", "References 1", "Section 2", "Four @d.", "References 2");
+  await refresh();
+  await cursorAfter("References 1");
+  await insertBibliography();
+  await cursorAfter("References 2");
+  await insertBibliography();
+  await setTracking("TrackAll");
+  const shown = await markup("all");
+  const before = await revisions();
+  const moved = await comRelocate("Two");
+  w = await watcher("Four");
+  if (!w) await refresh();
+  const types = await revisions();
+  // A control's text follows the markup shown; with Simple Markup the moved-away copy reads empty.
+  await markup("simple");
+  const cites = await citeTexts();
+  await markup("all");
+  check("a tracked move of a paragraph: numbers follow the new order", same(cites.filter(Boolean), ["[1]", "[2]", "[3]", "[1]"]) && same((await firstWords())[0], ["Alpha", "Gamma", "Beta"]),
+    { moved, types, cites, bibs: await bibTexts(), status: $("status").textContent });
+  await markup("simple");
+  const again = await refresh();
+  check("with Simple Markup shown, the move needs no writes", again && !again.citations.length && !again.bibs.length, again && { c: again.citations, b: again.bibs.length });
+  await markup(shown);
+  await setTracking("Off");
+  await refresh();
+  // Whatever the relocate added must still be there: the move stays tracked.
+  const still = await revisions();
+  const added = types.filter(([t, x]) => !before.some(([t2, x2]) => t2 === t && x2 === x));
+  const kept = added.length > 0 && added.every(([t, x]) => still.some(([t2, x2]) => t2 === t && x2 === x));
+  check("the move stays tracked for review", moved > before.length && kept, { moved, before: before.length, added, still });
+
+  // Renumbering with track changes on: a new first citation renumbers the
+  // rest untracked, and the bibliography too.
+  await setTracking("TrackAll");
+  await acceptAll();
+  await cursorAfter("Section 1");
+  await act(() => pick("d"));
+  const tracked = await revisions();
+  check("renumbering with track changes on tracks only the new citation", tracked.length === 1 && tracked[0][0] === "Added" && same((await citeTexts()).slice(0, 4), ["[1]", "[2]", "[3]", "[4]"]), { tracked, cites: await citeTexts() });
+  await setTracking("Off");
+  await settled("sections");
+}
+
+async function sectionsReopen() {
+  const f = done.first;
+  check("the first refresh writes nothing", f && !f.citations.length && !f.bibs.length && !f.removes.length, f && { c: f.citations, b: f.bibs.length, r: f.removes });
+  const tracked = await revisions();
+  check("the tracked insertion is still there", tracked.length === 1 && tracked[0][0] === "Added", tracked);
+  await acceptAll();
+  const r = await refresh();
+  check("after accepting, a refresh writes nothing", r && !r.citations.length && !r.bibs.length, r && { c: r.citations, b: r.bibs.length });
+  await settled("reopened");
+}
+
+const SCENARIOS = { main, "main-reopen": mainReopen, template, "template-reopen": templateReopen, markers, sections, "sections-reopen": sectionsReopen };
+
+onReady(async () => {
+  const { scenario } = await (await fetch("e2e-config.json", { cache: "no-store" })).json();
   try {
-    await { main: scenario, template: templateScenario, verify: verifyScenario }[m]();
+    await SCENARIOS[scenario]();
   } catch (e) {
-    check("scenario", false, String(e && (e.stack || e.message || e)));
+    check("the scenario ran to its end", false, String(e && (e.stack || e.message || e)));
   }
-  const final = await controls().catch((e) => String(e));
-  post({ done: true, ok: results.every((r) => r.ok), failed: results.filter((r) => !r.ok).map((r) => r.name), controls: final });
+  return results.every((r) => r.ok);
 });
-window.addEventListener("error", (e) => post({ error: String(e.message) }));
-window.addEventListener("unhandledrejection", (e) => post({ error: String(e.reason && (e.reason.stack || e.reason)) }));

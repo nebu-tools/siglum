@@ -9,16 +9,23 @@ import { fileURLToPath } from "node:url";
 
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".png": "image/png", ".xml": "application/xml" };
 
-/** Starts a static server. POST /log bodies go to `onLog` as parsed JSON. */
+/**
+ * Starts a static server. POST /log bodies go to `onLog` as parsed JSON, and
+ * what `onLog` returns, once it settles, is the answer.
+ */
 export function serve(dir, port, onLog = () => {}) {
   const root = path.resolve(dir);
   const server = http.createServer((req, res) => {
     if (req.method === "POST" && req.url === "/log") {
       let body = "";
       req.on("data", (d) => (body += d));
-      req.on("end", () => {
-        try { onLog(JSON.parse(body)); } catch { onLog({ raw: body }); }
-        res.end("ok");
+      req.on("end", async () => {
+        let msg;
+        try { msg = JSON.parse(body); } catch { msg = { raw: body }; }
+        let answer;
+        try { answer = await onLog(msg); } catch (e) { answer = { error: String(e?.message ?? e) }; }
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify(answer ?? null));
       });
       return;
     }

@@ -19,7 +19,10 @@ const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"))
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
 const entries = { taskpane: path.join(root, "src/taskpane.js") };
-if (e2e) entries.e2e = path.join(root, "e2e/page.js");
+// Harness pages for Word (e2e/): each runs next to the real pane in a page of its own.
+// scratch.js is for one-off experiments and is not committed.
+const HARNESS = { e2e: "e2e/page.js", measure: "e2e/measure.js", probe: "e2e/probe.js", scratch: "e2e/scratch.js" };
+if (e2e) for (const [name, file] of Object.entries(HARNESS)) if (fs.existsSync(path.join(root, file))) entries[name] = path.join(root, file);
 await build({
   entryPoints: entries,
   outdir: out,
@@ -35,7 +38,7 @@ for (const f of ["taskpane.html", "taskpane.css"]) fs.copyFileSync(path.join(roo
 for (const s of [16, 32, 64, 80]) fs.copyFileSync(path.join(root, `assets/icon-${s}.png`), path.join(out, `icon-${s}.png`));
 if (e2e) {
   const html = fs.readFileSync(path.join(root, "src/taskpane.html"), "utf8");
-  fs.writeFileSync(path.join(out, "e2e.html"), html.replace('<script src="taskpane.js"></script>', '<script src="e2e.js"></script>\n  <script src="taskpane.js"></script>'));
+  for (const name of Object.keys(HARNESS)) if (entries[name]) fs.writeFileSync(path.join(out, `${name}.html`), html.replace('<script src="taskpane.js"></script>', `<script src="${name}.js"></script>\n  <script src="taskpane.js"></script>`));
 }
 const manifest = fs.readFileSync(path.join(root, "manifest.xml"), "utf8")
   .replace(/^<!--.*-->\n/m, "")

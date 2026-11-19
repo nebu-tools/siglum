@@ -1,0 +1,114 @@
+dist-e2e/ for http://localhost:3187
+
+== an empty document: citing, markers, bibliographies, deleting, track changes, lookup
+ok   main: a new document has no store
+ok   main: import
+ok   main: fuzzy search
+ok   main: cite by search
+ok   main: marker converted
+ok   main: idle refresh writes nothing
+ok   main: first bibliography
+ok   main: multi cite
+ok   main: second section restarts
+ok   main: idle refresh with bibliographies
+ok   main: appendix and table join the last bibliography
+ok   main: a pick inside a citation joins it
+ok   main: renumber
+ok   main: delete
+ok   main: an emptied citation goes
+ok   main: a pasted copy
+ok   main: with track changes on only the new citation is tracked
+ok   main: tracked renumber
+ok   main: with track changes on a pick inside a citation is a citation of its own
+ok   main: that citation is only added
+ok   main: a tracked deletion waits for review
+ok   main: doi lookup
+ok   main: pmid lookup
+ok   main: a marker group with a page
+ok   main: an unknown key and an e-mail address stay text
+ok   main: main: a second refresh writes nothing
+    Word 16.0 build 16.0.20326, pid 24536, open 0.4 s, pane 25.9 s
+ok   main: the saved file holds one store
+ok   main: saved citations are content controls
+ok   main: saved with two bibliographies
+
+== main's result, saved, closed and opened again
+ok   main-reopen: the first refresh writes nothing
+FAIL main-reopen: sources and citations are there  {"sources":["mueller2020","survey2023","lee2010","snow2024","watson1953","altschul1990"],"cited":8,"pending":1}
+ok   main-reopen: reopened: a second refresh writes nothing
+    Word 16.0 build 16.0.20326, pid 56028, open 0.4 s, pane 1.9 s
+FAIL main-reopen: session  {"code":0,"saved":true,"done":{"done":true,"ok":false},"checks":3}
+
+== a template with headings and placeholders
+ok   template: import
+ok   template: a bibliography inserted with track changes on is not tracked
+ok   template: one bibliography per section
+ok   template: a bibliography in a heading or list placeholder is a plain paragraph
+    Word 16.0 build 16.0.20326, pid 72712, open 0.4 s, pane 7.8 s
+ok   template: the saved file holds one store
+
+== template's result, opened again
+ok   template-reopen: the first refresh writes nothing
+ok   template-reopen: sources and citations are there
+ok   template-reopen: citing goes on
+ok   template-reopen: reopened: a second refresh writes nothing
+    Word 16.0 build 16.0.20326, pid 74256, open 0.4 s, pane 3.0 s
+ok   template-reopen: the saved file holds one store
+
+== typed markers next to fields, tracked changes, comments, controls and in long groups
+ok   markers: import
+ok   markers: a field before and after the markers
+ok   markers: a tracked insertion that holds the marker
+ok   markers: a tracked deletion just before the marker
+ok   markers: a no-break space between two markers: one citation
+ok   markers: a no-break space before a marker
+ok   markers: a tab between two markers: two citations
+ok   markers: a caret in a supplement
+ok   markers: a key typed with a combining accent
+KNOWN markers: a comment anchored on the marker  {"got":{"text":"See [#] here.","cites":["a"],"lost":[],"unknown":[]},"want":{"text":"See [#] here.","cites":["a"]},"more":{"comments":0}}
+      Word deletes a comment when all of its text goes, and a marker's text is replaced by the citation.
+ok   markers: markers in table cells, the same marker twice in a row
+ok   markers: a marker typed inside a citation or a bibliography entry stays text
+ok   markers: a marker in another add-in's control inside a bibliography stays text
+ok   markers: a citation edited to read @a, with @b after it: nothing replaced
+ok   markers: a citation edited to read @a, with @b before it: nothing replaced
+ok   markers: a marker that reaches into a citation: nothing replaced
+ok   markers: markers before, inside and after another add-in's control that holds a citation
+ok   markers: markers of different lengths in one paragraph
+ok   markers: a group of 25 markers, longer than a search
+ok   markers: the same long group twice in a paragraph
+ok   markers: two long groups that begin alike
+ok   markers: two long groups that end alike
+ok   markers: a key of 130 letters outside the basic plane
+ok   markers: a supplement with ^p, ^t, ^? and * while Use wildcards is on
+    Word 16.0 build 16.0.20326, pid 23088, open 0.3 s, pane 20.7 s
+ok   markers: the saved file holds one store
+
+== copy, cut and move of citations between sections, tracked moves
+ok   sections: two sections
+ok   sections: a copy into the next section: the watcher refreshes
+ok   sections: a cut and paste into the next section
+ok   sections: a cut and paste back into the first section
+ok   sections: after moving: a second refresh writes nothing
+FAIL sections: a tracked move of a paragraph: numbers follow the new order  {"moved":2,"types":[["MovedFrom","Two [2].\r"],["MovedTo","Two [2].\r"]],"cites":["[1]","","[3]","[2]","[1]"],"bibs":[["1.\tAlpha A. First work. Test J. 2020.","2.\tBeta A. Second work. Test J. 2020.","3.\tGamma A. Third work. Test J. 2020."],["1.\tDelta A. Fourth work. Test J. 2020."]],"status":"4 sources · 5 citations · 2 sections"}
+ok   sections: the move stays tracked for review
+ok   sections: renumbering with track changes on tracks only the new citation
+ok   sections: sections: a second refresh writes nothing
+    Word 16.0 build 16.0.20326, pid 23376, open 0.3 s, pane 23.5 s
+FAIL sections: session  {"code":0,"saved":true,"done":{"done":true,"ok":false},"checks":9}
+
+== sections' result, opened again
+ok   sections-reopen: the first refresh writes nothing
+ok   sections-reopen: the tracked insertion is still there
+ok   sections-reopen: after accepting, a refresh writes nothing
+ok   sections-reopen: reopened: a second refresh writes nothing
+    Word 16.0 build 16.0.20326, pid 64188, open 0.4 s, pane 3.2 s
+ok   sections-reopen: the saved file holds one store
+
+E2E failed: 4 of 83 checks.
+  main-reopen: sources and citations are there
+  main-reopen: session
+  sections: a tracked move of a paragraph: numbers follow the new order
+  sections: session
+1 known defect(s), listed in the README's limits:
+  markers: a comment anchored on the marker

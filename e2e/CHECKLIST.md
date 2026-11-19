@@ -1,47 +1,27 @@
-# What only real Word can settle
+# What a person has to check
 
-The unit tests run against `test/fake-word.js`, which models Word's search and content controls as far as we know them. These points depend on how Word really behaves. Check each one on this branch in Word for Windows, with `npm run e2e` and by hand, and note what you see.
+`npm run e2e` checks in real Word for Windows what the unit tests cannot: typed markers next to fields, tracked changes, comments, no-break spaces, tabs, carets, combining accents, table cells and other add-ins' content controls; long groups and keys longer than one search; "Use wildcards" left on in Word's Find dialog; copy, cut and move of citations between sections, a tracked move, renumbering with track changes on; save, close and reopen. `node e2e/probe.mjs` shows what happens to citations in footnotes, endnotes, headers and text boxes, and to citations pasted into another document. See [README.md](README.md).
 
-## Paragraph text and literal search
+These points need a person, because Word automation cannot do them or cannot see the result.
 
-Siglum reads a paragraph's `text`, finds the markers in it, and then searches the paragraph for each marker's text. It converts a marker only when the number of search hits equals the number of occurrences in `text` and the range it found reads exactly like the marker. Otherwise the pane lists the marker under "Not converted". Check that the two agree, and that nothing is replaced in the wrong place, when these are near a marker in the same paragraph:
+## The clipboard and the mouse
 
-- a field, such as a date or a cross-reference, before and after the marker
-- a tracked insertion that contains the marker, and a tracked deletion just before it
-- a no-break space between two markers (`@a`, no-break space, `@b`): one citation
-- a no-break space before a marker
-- a tab between two markers: two citations
-- a caret in a supplement, `@a[x^2]`: Siglum searches for `^^`
-- a key typed with a combining accent (`e` followed by U+0301)
-- a comment anchored on the marker
+The suite copies and moves citations with Word's object model (`Range.FormattedText`), which is what a paste does inside one document, and leaves the system clipboard alone, because other programs on the same computer use it. Check by hand, with track changes off and on:
 
-## Places
+- Select a citation, press Ctrl+C, and press Ctrl+V in the next section. Then the same with Ctrl+X.
+- Drag a sentence with a citation into another section with the mouse.
+- Copy a citation into another document that has the same sources, and into one that has only some of them.
 
-- Markers in table cells, including two cells in one row with the same marker.
-- A marker typed inside an existing citation, and inside a bibliography entry: both stay text.
-- A marker inside another add-in's content control that is inside a bibliography: it stays text.
-- A citation whose text was edited to hold `@a`, with `@b` typed after a space: Siglum replaces nothing and reports `@a @b` as not converted. The same with `@b` before the citation.
-- Type `@` right before a citation and a letter at the start of the citation's control, so that the marker reaches into it: Siglum replaces nothing and reports the marker as not converted.
-- A citation inside another add-in's content control, with markers before, inside and after the outer control.
-- Several markers of different lengths in one paragraph, converted in one refresh: each citation stands where its marker stood.
+After each, move the cursor: the numbers and bibliographies follow within a few seconds.
 
-## Long groups
+## Office in another language
 
-- A group of 25 markers with supplements, more than 255 characters, cited as one citation. Siglum finds its first and last part and takes the range between them.
-- The same long group twice in one paragraph.
-- Two different long groups in one paragraph that begin or end with the same markers.
-- A key of 130 letters outside the basic plane, such as rare Chinese characters, which is over 255 UTF-16 units: the search does not fail.
-- A supplement with `^p`, `^t`, `^?` and `*` after "Use wildcards" was switched on in Word's Find dialog: the marker is still found as typed.
+With Office's display language in English and then in German, the ribbon button, its tooltip and the add-in's description show the matching texts from `manifest.xml`, and the pane opens in that language. The rig cannot change Office's display language without changing it for everyone who uses the computer.
 
-## Save and reopen
+## Working in a large document
 
-- In a new document with no store, import a source, cite it, save, close and reopen: the sources and the citation are there.
-- Convert markers, save, close, reopen the document, and refresh twice. The first refresh writes nothing, and the second neither.
+`node e2e/measure.mjs large` records how long Word's window does not answer ("UI stalls"). Whether Word feels usable while Siglum renumbers a large document needs someone typing in it.
 
-## Size
+## Other places Word runs
 
-- A document with 4,000 citations, ten bibliographies and a few hundred typed markers. Note how long a refresh takes and whether Word stays usable. A refresh makes a fixed number of `context.sync` calls; the time should grow with the document, not with the square of it.
-
-## Manifest
-
-- With Office in English and in German, the ribbon button, its tooltip and the add-in's description show the matching texts from `manifest.xml`.
+The rig drives Word for Windows only. Check the pane, citing, Refresh and a bibliography by hand in Word for Mac and in Word on the web, and with two people editing one document that is stored in OneDrive or SharePoint.

@@ -109,10 +109,13 @@ The pane is in English or German. It follows the display language of Office, and
 ## Current limits
 
 - Siglum has one citation style: NLM (Vancouver) with numbers in brackets, in order of appearance. To use another style, replace the `.csl` file and its import in `src/taskpane.js`.
-- Siglum finds citations in the body text only. It does not see footnotes, endnotes, headers, footers or text boxes.
+- Siglum finds citations in the body text only. A citation in a footnote, an endnote, a header, a footer or a text box is not numbered or refreshed: it keeps the text it had, such as `[?]`, and its sources are not in a bibliography.
+- The bundled style does not print a page or another place in the source. Siglum stores the page of `@smith2020[p. 12]` with the citation, but the citation reads `[1]`. A supplement that is not a place, such as `@smith2020[see also]`, is printed.
+- A citation that you paste into another document is known there only by the keys in its title. When the keys did not fit into the title's 64 characters, the citation stays under "Unknown". A page or a note in the citation does not travel with it.
+- A comment on a typed marker is lost when the marker becomes a citation, because Word deletes a comment when all of its text is replaced.
 - Only one person can use Siglum in a document at a time. When two people cite in the same document at the same moment, one set of changes can be lost.
 - The pane and the citations are available in English and German.
-- The end-to-end tests need Word on Windows.
+- The end-to-end tests need Word on Windows. See [e2e/README.md](e2e/README.md).
 
 ## Development
 
@@ -133,7 +136,7 @@ npm run serve
 
 Then sideload `dist/manifest.xml`. For development on Windows there is a quicker way than the shared folder: add a string value under `HKCU\Software\Microsoft\Office\16.0\WEF\Developer` that holds the full path of the manifest, and start Word again.
 
-`npm run e2e` runs the end-to-end tests. They run from WSL on a Windows computer with Word installed. They operate the pane in real documents and then examine the saved files.
+`npm run e2e` runs the end-to-end tests. They run from WSL on a Windows computer with Word installed. They operate the pane in real documents and then examine the saved files. [e2e/README.md](e2e/README.md) says how to run them and the measurements, and what they change on Windows; [e2e/CHECKLIST.md](e2e/CHECKLIST.md) lists what a person has to check.
 
 The code has these parts:
 

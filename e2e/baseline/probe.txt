@@ -1,0 +1,32 @@
+dist-e2e/ for http://localhost:3187
+
+== P1 places
+  first refresh: {"status":"9 sources · 4 citations","written":4,"unknown":[]}
+  body after the first refresh: ["[1]","[2]","[1–5]","[3]",["1.\tAlpha A. First work","2.\tBeta A. Second work","3.\tGamma A. Third work","4.\tDelta A. Fourth wor","5.\tEpsilon A. Fifth wo"]]
+  citations in other stories, read through Office.js: {"header":["[?]"],"footnotes":["[?]"],"endnotes":["[?]"]}
+  five-source citation: {"title":"Cite: alphaone2020; betatwo2019; gammathree2018; deltafour2017;…","text":"[1–5]"}
+  store: {"parts":1,"citations":8,"sources":9}
+  (Word exit 0, saved true)
+
+== S what the saved file holds
+  citation in a footnote: [["FN","[?]"]]
+  citation in a endnote: [["EN","[?]"]]
+  citation in a header: [["HD","[?]"]]
+  citation in a text box: [["TB","[?]"]]
+  custom XML parts in urn:siglum:store:1: 1, sources 9
+
+== P2 reopen
+  first refresh after reopening: {"status":"9 sources · 4 citations","citations":0,"bibs":0,"removes":0}
+  body after reopening: ["[1]","[2]","[1–5]","[3]",["1.\tAlpha A. First work","2.\tBeta A. Second work","3.\tGamma A. Third work","4.\tDelta A. Fourth wor","5.\tEpsilon A. Fifth wo"]]
+  stored citations without a control in the body: 4
+  (Word exit 0, saved true)
+
+== P3 paste into another document
+  after pasting a short, a paged and a cut-title citation: {"status":"5 sources · 2 citations\nUnknown: [1–5]","unknown":[{"index":2,"keys":[],"text":"[1–5]"}],"body":["[1]","[2]","[1–5]",["1.\tAlpha A. First work","2.\tBeta A. Second work"]]}
+  stored items of the pasted citations: [["apkf8A",[{"id":"alphaone2020"}]],["rpkf8B",[{"id":"betatwo2019"}]]]
+  (Word exit 0, saved true)
+
+== CO two Word instances on one file, without the pane
+  first instance read-only: False
+  second instance: no answer after 20 s (Open() waits on Word's 'file in use' prompt)
+    stopped the second instance (pid 4356)

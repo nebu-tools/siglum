@@ -180,6 +180,7 @@ async function run(fn) {
   } catch (e) {
     status(() => errorText(e), true);
     console.error(e);
+    document.dispatchEvent(new CustomEvent("siglum:done", { detail: { error: errorText(e) } }));
     return null;
   } finally {
     state.busy = false;

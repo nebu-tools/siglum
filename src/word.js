@@ -9,6 +9,7 @@ import {
   emptyStore, storeToXml, storeFromXml, newId, citeTitle, findMarkers, mayTouch, plan,
 } from "./model.js";
 import { documentText, UserError } from "./messages.js";
+import { controlTexts } from "./ooxml.js";
 
 // Hanging indent of bibliography entries, in points (1 cm).
 const HANG = 28.35;
@@ -47,24 +48,58 @@ async function openStore(context, session) {
   return storeFromXml(xml.value);
 }
 
-/** Citations and bibliographies in document order, with their texts. */
-async function snapshot(context) {
+/**
+ * Citations and bibliographies in document order, with their texts
+ * `current` and `original`: with tracked changes accepted and rejected.
+ *
+ * Without tracked changes a control's `text` is both, and that is all there
+ * is to read. With tracked changes, `text` follows how Word shows them ("All
+ * Markup" keeps deleted text in it, "Simple Markup" leaves it out), and
+ * getReviewedText costs about 90 ms per control in a large document and
+ * gives a moved text both ways. So then the texts come from the body's OOXML,
+ * which says what is inserted, deleted and moved, in one read.
+ */
+export async function readControls(context) {
   const all = citationControls(context);
-  all.load("items/tag,items/title,items/id,items/placeholderText");
+  all.load("items/tag,items/title,items/id,items/text,items/placeholderText");
   await context.sync();
+  let tracked = true;
+  try {
+    const changes = context.document.body.getTrackedChanges();
+    changes.load("items");
+    await context.sync();
+    tracked = changes.items.length > 0;
+  } catch {
+    // Word cannot list a document's tracked changes when one of them is a move.
+  }
   const ccs = all.items.filter(isOurs);
-  const cur = ccs.map((cc) => cc.getReviewedText("Current"));
-  const orig = ccs.map((cc) => (isCite(cc) ? cc.getReviewedText("Original") : null));
+  // An emptied control shows its placeholder: like the reviewed texts below,
+  // that reads as no text.
+  const shown = (cc) => (cc.placeholderText && cc.text === cc.placeholderText ? "" : cc.text);
+  let texts = ccs.map((cc) => ({ current: shown(cc), original: shown(cc) }));
+  if (tracked) {
+    const ooxml = context.document.body.getOoxml();
+    await context.sync();
+    const ours = controlTexts(ooxml.value).filter((c) => isOurs(c));
+    if (ours.length === ccs.length && ours.every((c, i) => c.tag === ccs[i].tag)) texts = ours;
+    else texts = await reviewedTexts(context, ccs);
+  }
+  const controls = ccs.map((cc, i) => (isCite(cc)
+    ? { kind: "cite", tag: cc.tag, title: cc.title, current: texts[i].current, original: texts[i].original }
+    : { kind: "bib", current: texts[i].current }));
+  return { ccs, controls };
+}
+
+/** The texts from getReviewedText, for when the OOXML does not match the controls Word lists. */
+async function reviewedTexts(context, ccs) {
+  const r = ccs.map((cc) => [cc.getReviewedText("Current"), cc.getReviewedText("Original")]);
   await context.sync();
   // Word wraps a control's reviewed text in "<…>". An emptied control shows its placeholder.
-  const text = (cc, r) => {
-    const v = r.value.startsWith("<") && r.value.endsWith(">") ? r.value.slice(1, -1) : r.value;
+  const text = (cc, x) => {
+    const v = x.value.startsWith("<") && x.value.endsWith(">") ? x.value.slice(1, -1) : x.value;
     return v === cc.placeholderText ? "" : v;
   };
-  const controls = ccs.map((cc, i) => (isCite(cc)
-    ? { kind: "cite", tag: cc.tag, title: cc.title, current: text(cc, cur[i]), original: text(cc, orig[i]) }
-    : { kind: "bib", current: text(cc, cur[i]) }));
-  return { ccs, controls };
+  return ccs.map((cc, i) => ({ current: text(cc, r[i][0]), original: text(cc, r[i][1]) }));
 }
 
 function setFont(range, run) {
@@ -124,7 +159,7 @@ async function withTracking(context, mode, fn) {
  */
 export async function refresh(context, session, { fresh = [], store } = {}) {
   store = store ?? await openStore(context, session);
-  const { ccs, controls } = await snapshot(context);
+  const { ccs, controls } = await readControls(context);
   const { locale } = store.settings;
   const p = plan(controls, store, session.renderer, { locale, bibEmpty: documentText(locale).bibEmpty });
   if (p.store) await saveStore(context, p.store);

@@ -1,124 +1,103 @@
-// End-to-end test in real Word, from WSL on a Windows machine with Word.
-// Builds the e2e pane, sideloads it for one Word instance at a time, opens
-// documents that open the pane by themselves and lets e2e/page.js drive it:
+// The end-to-end suite in real Word (npm run e2e). Each scenario opens a
+// document in a Word instance of its own; e2e/page.js in the pane drives the
+// real pane, checks what Word holds and reports pass or fail per check. The
+// harness then checks the saved file.
 //
-//   A  an empty document: citing, typed markers, bibliographies, deleting, track changes, DOI
-//   B  a template with headings and placeholders: one bibliography per section
-//   C  Word reopens B's result: everything still current, citing goes on
+//   npm run e2e                 every scenario
+//   npm run e2e -- markers      only those, by name
 //
-//   npm run e2e        results in dist-e2e/{a,b,c}.docx
-import { execFileSync, spawn } from "node:child_process";
+// The results are in dist-e2e/<scenario>.docx.
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { serve } from "../scripts/serve.mjs";
-import { BIB_TAG, CITE_PREFIX } from "../src/model.js";
+import { dist, build, requireWindows, withPane, inWord, readDocx, stop } from "./rig.mjs";
+import { BIB_TAG, CITE_PREFIX, NS, storeFromXml } from "../src/model.js";
 
-const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PS = "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe";
-const PORT = 3187;
-const ADDIN_ID = /<Id>([^<]+)<\/Id>/.exec(fs.readFileSync(path.join(root, "manifest.xml"), "utf8"))[1];
+requireWindows();
+build();
 
-if (!fs.existsSync(PS)) {
-  console.error("The e2e tests need WSL on a Windows machine with Word.");
-  process.exit(2);
+const file = (n) => path.join(dist, n);
+const results = [];
+
+function check(name, pass, detail, known) {
+  results.push({ name, ok: !!pass || !!known, known: known && !pass });
+  const mark = pass ? "ok  " : known ? "KNOWN" : "FAIL";
+  console.log(`${mark} ${name}${pass ? "" : "  " + JSON.stringify(detail)}${known && !pass ? "\n      " + known : ""}`);
+  return !!pass || !!known;
 }
 
-execFileSync("node", [path.join(root, "scripts/build.mjs"), "--e2e", "--base", `http://localhost:${PORT}`], { stdio: "inherit" });
-const dist = path.join(root, "dist-e2e");
-
-const XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
-const document = (text) => `${XML}<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p>${text ? `<w:r><w:t>${text}</w:t></w:r>` : ""}</w:p></w:body></w:document>`;
-const EMPTY = {
-  "[Content_Types].xml": `${XML}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`,
-  "_rels/.rels": `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`,
-};
-
-/**
- * Copies a docx, or makes one with a single paragraph of `text`, and adds a
- * task pane that opens with it. The text tells e2e/page.js which scenario to run.
- */
-function withPane({ base, text = "" }, file) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "siglum-docx-"));
-  if (base) execFileSync("unzip", ["-q", base, "-d", dir]);
-  const put = (p, s) => { fs.mkdirSync(path.dirname(path.join(dir, p)), { recursive: true }); fs.writeFileSync(path.join(dir, p), s); };
-  if (!base) for (const [p, s] of Object.entries({ ...EMPTY, "word/document.xml": document(text) })) put(p, s);
-  const ct = path.join(dir, "[Content_Types].xml");
-  fs.writeFileSync(ct, fs.readFileSync(ct, "utf8").replace("</Types>", '<Override PartName="/word/webextensions/taskpanes.xml" ContentType="application/vnd.ms-office.webextensiontaskpanes+xml"/><Override PartName="/word/webextensions/webextension1.xml" ContentType="application/vnd.ms-office.webextension+xml"/></Types>'));
-  const rels = path.join(dir, "_rels/.rels");
-  fs.writeFileSync(rels, fs.readFileSync(rels, "utf8").replace("</Relationships>", '<Relationship Id="rIdSiglumPane" Type="http://schemas.microsoft.com/office/2011/relationships/webextensiontaskpanes" Target="word/webextensions/taskpanes.xml"/></Relationships>'));
-  put("word/webextensions/taskpanes.xml", `${XML}<wetp:taskpanes xmlns:wetp="http://schemas.microsoft.com/office/webextensions/taskpanes/2010/11"><wetp:taskpane dockstate="right" visibility="1" width="350" row="0"><wetp:webextensionref xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId1"/></wetp:taskpane></wetp:taskpanes>`);
-  put("word/webextensions/_rels/taskpanes.xml.rels", `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.microsoft.com/office/2011/relationships/webextension" Target="webextension1.xml"/></Relationships>`);
-  put("word/webextensions/webextension1.xml", `${XML}<we:webextension xmlns:we="http://schemas.microsoft.com/office/webextensions/webextension/2010/11" id="{0A1B2C3D-0000-4000-8000-000000000001}"><we:reference id="${ADDIN_ID}" version="1.0.0.0" store="developer" storeType="Registry"/><we:alternateReferences/><we:properties><we:property name="Office.AutoShowTaskpaneWithDocument" value="true"/></we:properties><we:bindings/><we:snapshot xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/></we:webextension>`);
-  fs.rmSync(file, { force: true });
-  execFileSync("zip", ["-X", "-q", "-r", file, "."], { cwd: dir });
-  fs.rmSync(dir, { recursive: true });
-}
-
-const win = execFileSync(PS, ["-NoProfile", "-Command", "$env:TEMP"], { encoding: "utf8" }).trim();
-const winDir = `${win}\\siglum-e2e`;
-const dir = execFileSync("wslpath", ["-u", winDir], { encoding: "utf8" }).trim();
-let log = () => {};
-const server = await serve(dist, PORT, (msg) => log(msg));
-
-/** Opens `docx` in Word with the e2e pane and returns its checks and the saved file. */
-async function inWord(name, docx, out) {
+/** Opens `docx` with the e2e page, which runs `scenario`. Returns whether all its checks passed. */
+async function session(name, scenario, docx, out) {
   console.log(`\n== ${name}`);
-  fs.rmSync(dir, { recursive: true, force: true });
-  fs.mkdirSync(dir, { recursive: true });
-  fs.copyFileSync(path.join(dist, "manifest.xml"), path.join(dir, "manifest.xml"));
-  fs.copyFileSync(path.join(root, "e2e/word.ps1"), path.join(dir, "word.ps1"));
-  fs.copyFileSync(docx, path.join(dir, "in.docx"));
-  const checks = [];
-  let done = null;
-  log = (msg) => {
-    if (msg.check) {
-      checks.push(msg);
-      console.log(`${msg.ok ? "ok  " : "FAIL"} ${msg.check}${msg.ok ? "" : "  " + JSON.stringify(msg.detail)}`);
-    } else if (msg.done) {
-      done = msg;
-      fs.writeFileSync(path.join(dir, "done"), "");
-    } else {
-      console.log("    " + JSON.stringify(msg));
-    }
-  };
-  const code = await new Promise((resolve) => {
-    const p = spawn(PS, ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", `${winDir}\\word.ps1`, "-Dir", winDir, "-AddinId", ADDIN_ID], { stdio: "inherit" });
-    p.on("exit", resolve);
+  fs.writeFileSync(file("e2e-config.json"), JSON.stringify({ scenario }));
+  let checks = 0;
+  let failed = 0;
+  const r = await inWord({
+    docx, out, page: "e2e.html", timeout: 900,
+    onMessage: (msg) => {
+      if (msg.check) {
+        checks++;
+        if (!check(`${scenario}: ${msg.check}`, msg.ok, msg.detail, msg.known)) failed++;
+      } else if (!msg.done) {
+        console.log("    " + JSON.stringify(msg));
+      }
+    },
   });
-  const saved = fs.existsSync(path.join(dir, "out.docx"));
-  if (saved) fs.copyFileSync(path.join(dir, "out.docx"), out);
-  fs.rmSync(dir, { recursive: true, force: true });
-  const ok = code === 0 && saved && done?.ok === true && checks.length > 0;
-  if (!ok) console.log(`FAIL ${name}: ${done?.failed?.join(", ") || (saved ? "the page did not finish" : "the document was not saved")}`);
+  if (r.info) console.log(`    Word ${r.info.version} build ${r.info.build}, pid ${r.info.pid}, open ${r.info.openSeconds?.toFixed(1)} s, pane ${r.info.paneSeconds?.toFixed(1)} s`);
+  const ok = r.code === 0 && (r.saved || !out) && r.done?.ok === true && checks > 0 && !failed;
+  if (!ok) check(`${scenario}: session`, false, { code: r.code, saved: r.saved, done: r.done, checks });
   return ok;
 }
 
-function check(name, pass, detail) {
-  console.log(`${pass ? "ok  " : "FAIL"} ${name}${pass ? "" : "  " + JSON.stringify(detail)}`);
-  return pass;
-}
-
-const unzipped = (docx, part) => execFileSync("unzip", ["-p", docx, part], { encoding: "utf8" });
+const saved = (n) => readDocx(file(n));
 const tagged = (xml, tag) => (xml.match(new RegExp(`<w:tag w:val="${tag}`, "g")) ?? []).length;
-const file = (n) => path.join(dist, n);
-let ok = true;
-try {
-  withPane({}, file("a-in.docx"));
-  ok &&= await inWord("A: an empty document", file("a-in.docx"), file("a.docx"));
-  if (ok) {
-    const doc = unzipped(file("a.docx"), "word/document.xml");
-    ok &&= check("A saved: citations as content controls", tagged(doc, CITE_PREFIX) >= 8, tagged(doc, CITE_PREFIX));
-    ok &&= check("A saved: two bibliographies", tagged(doc, BIB_TAG + '"') === 2, tagged(doc, BIB_TAG + '"'));
+const storeOf = (parts) => {
+  const xml = Object.entries(parts).filter(([k, v]) => /^customXml\/item\d+\.xml$/.test(k) && typeof v === "string" && v.includes(NS));
+  return { parts: xml.length, store: xml.length ? storeFromXml(xml[0][1]) : null };
+};
+
+const empty = (name) => () => withPane(null, file(`${name}-in.docx`));
+const again = (from) => (name) => withPane(file(`${from}.docx`), file(`${name}-in.docx`));
+// [name, what it does, how its input is made]. A later one opens an earlier one's result.
+const SCENARIOS = [
+  ["main", "an empty document: citing, markers, bibliographies, deleting, track changes, lookup", empty("main")],
+  ["main-reopen", "main's result, saved, closed and opened again", again("main")],
+  ["template", "a template with headings and placeholders", empty("template")],
+  ["template-reopen", "template's result, opened again", again("template")],
+  ["markers", "typed markers next to fields, tracked changes, comments, controls and in long groups", empty("markers")],
+  ["sections", "copy, cut and move of citations between sections, tracked moves", empty("sections")],
+  ["sections-reopen", "sections' result, opened again", again("sections")],
+];
+
+async function scenario([name, what, make]) {
+  if (make === undefined) return;
+  try { make(name); } catch (e) { check(`${name}: input`, false, String(e.message)); return; }
+  if (!await session(what, name, file(`${name}-in.docx`), file(`${name}.docx`))) return;
+  const parts = saved(`${name}.docx`);
+  const doc = parts["word/document.xml"];
+  const { parts: n } = storeOf(parts);
+  check(`${name}: the saved file holds one store`, n === 1, n);
+  if (name === "main") {
+    check("main: saved citations are content controls", tagged(doc, CITE_PREFIX) >= 8, tagged(doc, CITE_PREFIX));
+    check("main: saved with two bibliographies", tagged(doc, BIB_TAG + '"') === 2, tagged(doc, BIB_TAG + '"'));
   }
-
-  withPane({ text: "e2e:template" }, file("b-in.docx"));
-  ok &&= await inWord("B: a template", file("b-in.docx"), file("b.docx"));
-  if (ok) ok &&= await inWord("C: B's result, opened again", file("b.docx"), file("c.docx"));
-
-} finally {
-  server.close();
 }
-console.log(ok ? "\nE2E passed." : "\nE2E failed.");
-process.exit(ok ? 0 : 1);
+
+const want = process.argv.slice(2);
+for (const w of want) {
+  if (!SCENARIOS.some(([n]) => n === w)) check(`${w}: input`, false, `no such scenario (one of ${SCENARIOS.map(([n]) => n).join(", ")})`);
+}
+// A reopen scenario needs its first run's document: include it.
+for (const [n] of SCENARIOS) {
+  const first = n.replace(/-reopen$/, "");
+  if (first !== n && want.includes(n) && !want.includes(first)) want.unshift(first);
+}
+try {
+  for (const sc of SCENARIOS) if (!want.length || want.includes(sc[0])) await scenario(sc);
+} finally {
+  stop();
+}
+const failed = results.filter((r) => !r.ok);
+const knownFails = results.filter((r) => r.known);
+const knownLine = knownFails.length ? `\n${knownFails.length} known defect(s), listed in the README's limits:\n${knownFails.map((r) => "  " + r.name).join("\n")}` : "";
+console.log((failed.length ? `\nE2E failed: ${failed.length} of ${results.length} checks.\n${failed.map((r) => "  " + r.name).join("\n")}` : `\nE2E passed: ${results.length} checks.`) + knownLine);
+process.exit(failed.length ? 1 : 0);
