@@ -224,13 +224,24 @@ async function updateEditor() {
   $("editCitation").hidden = false;
 }
 
-// Showing the editor follows the cursor, on its own debounce, apart from the
-// watcher's refresh: selecting text never writes by itself.
-function watchEditor() {
+// Deleting or pasting a citation changes the order of tags. A quiet check after
+// the cursor moves keeps numbers and bibliographies current without a click.
+// It does not run while citation numbers are known not to be up to date: the
+// status line then asks for a click on Refresh.
+//
+// Showing the edit UI follows the same cursor move, on its own debounce, but
+// through this one handler: registering a second DocumentSelectionChanged
+// handler stops the watcher's refresh on real Word. Selecting text never
+// writes by itself.
+function watch() {
   let timer = null;
+  const check = () => queue.check().catch((e) => console.error(e));
+  let editTimer = null;
   Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, () => {
     clearTimeout(timer);
-    timer = setTimeout(() => updateEditor().catch((e) => console.error(e)), 400);
+    timer = setTimeout(check, 700);
+    clearTimeout(editTimer);
+    editTimer = setTimeout(() => updateEditor().catch((e) => console.error(e)), 400);
   });
 }
 
@@ -400,19 +411,6 @@ function wire() {
   $("locale").addEventListener("change", (e) => op((c) => doc.setLocale(c, session, e.target.value)));
 }
 
-// Deleting or pasting a citation changes the order of tags. A quiet check after
-// the cursor moves keeps numbers and bibliographies current without a click.
-// It does not run while citation numbers are known not to be up to date: the
-// status line then asks for a click on Refresh.
-function watch() {
-  let timer = null;
-  const check = () => queue.check().catch((e) => console.error(e));
-  Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, () => {
-    clearTimeout(timer);
-    timer = setTimeout(check, 700);
-  });
-}
-
 Office.onReady(async () => {
   // The pane follows Office's display language. A new document's citations
   // follow its editing language.
@@ -422,7 +420,6 @@ Office.onReady(async () => {
   wire();
   await op((c) => doc.convertMarkers(c, session));
   watch();
-  watchEditor();
   $("q").focus();
   document.dispatchEvent(new CustomEvent("siglum:ready"));
 });

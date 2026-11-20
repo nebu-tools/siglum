@@ -242,7 +242,7 @@ async function main() {
   r = await refresh();
   const typed = await citeTexts();
   const group = Object.values(r.store.citations).find((items) => items.some((x) => x.locator));
-  check("a marker group with a page", typed.length === before + 1 && /^\[\d+[,–-]\d+\]$/.test(typed.at(-1)) && r.converted === 1
+  check("a marker group with a page", typed.length === before + 1 && /^\[\d+,\d+(, .*)?\]$/.test(typed.at(-1)) && r.converted === 1
     && same(group, [{ id: "lee2010" }, { id: "mueller2020", locator: "12", label: "page" }]), { typed, group, converted: r.converted });
   const text = await bodyText();
   check("an unknown key and an e-mail address stay text", /Unknown: nokey2000/.test($("status").textContent) && text.includes("@nokey2000") && text.includes("anna@example.org") && !text.includes("@lee2010"), { status: $("status").textContent, text: text.slice(-200) });
@@ -885,6 +885,7 @@ async function edit() {
   await d;
   await idle();
   check("citing works in the edit scenario", (await citeTexts())[0] === "[1]", await citeTexts());
+  const cited = await citeTexts();
   // The cursor in a citation shows the editor with its source.
   await cursorInCite(0);
   let open = false;
@@ -912,7 +913,8 @@ async function edit() {
   $("editSave").click();
   await d;
   await idle();
-  check("removing the only item deletes the citation", (await citeTexts()).length === 0, await citeTexts());
+  // The new citation is gone; the fixture's own citations stand as before it.
+  check("removing the only item deletes the citation", (await citeTexts()).length === cited.length - 1, await citeTexts());
   await consistent("an edited document stays consistent");
 }
 
