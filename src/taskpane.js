@@ -44,7 +44,7 @@ function setLanguage(language) {
   showStatus();
   if (editing) {
     // Keep what was typed: re-rendering rebuilds the fields from the items.
-    editing = { id: editing.id, items: readEditor() };
+    editing = { id: editing.id, items: readEditor(editing.items) };
     renderEditor();
   }
 }
@@ -191,8 +191,11 @@ function renderEditor() {
   $("editItems").replaceChildren(...editing.items.map(editRow));
 }
 
-/** The items as edited: locators with labels, affixes; empty fields are dropped. */
-function readEditor() {
+/** The items as edited: locators with labels, affixes; empty fields are dropped.
+ * Fields with no editor control travel with their item, so neither saving
+ * nor a language switch while editing drops them. */
+function readEditor(before = []) {
+  const prev = new Map(before.map((x) => [x.id, x]));
   return [...$("editItems").children].map((row) => {
     const item = { id: row.dataset.key };
     const locator = row.querySelector(".edit-locator").value.trim();
@@ -202,6 +205,7 @@ function readEditor() {
     if (locator) { item.locator = locator; if (label) item.label = label; }
     if (prefix) item.prefix = prefix;
     if (suffix) item.suffix = suffix;
+    if (prev.get(item.id)?.suppressAuthor) item.suppressAuthor = true;
     return item;
   });
 }
@@ -373,11 +377,8 @@ function wire() {
   $("refresh").addEventListener("click", () => op((c) => doc.convertMarkers(c, session)));
   $("editSave").addEventListener("click", async () => {
     if (!editing) return;
-    const items = readEditor();
-    // Fields with no editor control travel with their item, so saving never drops them.
-    const prev = new Map(editing.items.map((x) => [x.id, x]));
-    for (const it of items) if (prev.get(it.id)?.suppressAuthor) it.suppressAuthor = true;
     const id = editing.id;
+    const items = readEditor(editing.items);
     const r = await op((c) => doc.editCitation(c, session, id, items));
     if (!r) return;
     if (!items.length) { hideEditor(); return; }
