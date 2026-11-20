@@ -80,9 +80,9 @@ test("a locale tag resolves to a bundled locale", () => {
   assert.deepEqual(renderer.locales, have);
 });
 
-test("a supplement that is no locator follows the number", () => {
+test("locators print after the number, a plain suffix too", () => {
   const p = plan([cite("1"), cite("2")], store({ 1: [{ id: "a", suffix: "see the table" }], 2: [{ id: "a", locator: "12", label: "page" }, { id: "b" }] }), renderer);
-  assert.deepEqual(p.citations.map((c) => runsText(c.runs)), ["[1, see the table]", "[1,2]"]);
+  assert.deepEqual(p.citations.map((c) => runsText(c.runs)), ["[1, see the table]", "[1, p. 12,2]"]);
 });
 
 test("emptied citations go away, tracked deletions wait", () => {

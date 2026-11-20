@@ -31,6 +31,7 @@ The rig reads every stored name (tags, title prefix, namespace) from `src/model.
 | `renumber` | A generated document of 300 citations: a new first citation is numbered at once and the rest follows in batches with a progress line; a second citation and a deletion while the batches run; the pane closed (reloaded) half-way; the document saved and closed half-way. Afterwards a refresh writes nothing, and the stored entries of deleted citations are gone. |
 | `renumber-reopen` | `renumber`'s result, saved while the batches ran, opened again: the first refresh writes the rest, the next one nothing. |
 | `fastpath` | A generated document of 600 citations: a new first citation renumbers them in one body write after the bibliographies; a text box, a person's bookmark and a comment thread pass through. |
+| `edit` | Citing, then editing the citation's page and note in the pane and removing the citation again. |
 
 A check that fails because of a defect listed in the README's limits is reported as `KNOWN` with the reason and does not fail the run.
 

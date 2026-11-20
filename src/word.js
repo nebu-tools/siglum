@@ -343,6 +343,44 @@ function tagCitation(cc, id, items, text) {
 }
 
 /**
+ * The citation at the cursor, for the edit UI: its store id and items, or
+ * null when the cursor is not in a citation. Read-only, so the pane calls
+ * it outside the queue.
+ */
+export async function citationAtCursor(context, session) {
+  const store = await openStore(context, session);
+  const sel = context.document.getSelection();
+  const host = sel.parentContentControlOrNullObject;
+  host.load("tag");
+  await context.sync();
+  if (host.isNullObject || !isCite(host)) return null;
+  const id = host.tag.slice(CITE_PREFIX.length);
+  return { id, items: store.citations[id] ?? [] };
+}
+
+/**
+ * Replaces one citation's items and brings the document up to date. With no
+ * items the citation is deleted instead, like a leftover: the refresh drops
+ * it and prunes the store. The pane runs this through the queue, like every
+ * other operation, so it cannot interleave with batches that are still
+ * writing.
+ */
+export async function editCitation(context, session, id, items, { store } = {}) {
+  store = store ?? await openStore(context, session);
+  const { ccs } = await readControls(context);
+  const at = ccs.findIndex((cc) => cc.tag === CITE_PREFIX + id);
+  if (at < 0) throw new UserError("error.noSuchCitation");
+  if (!items.length) {
+    await writeUntracked(context, () => { ccs[at].delete(false); });
+    return refresh(context, session, { store });
+  }
+  ccs[at].title = citeTitle(items);
+  const next = { ...store, citations: { ...store.citations, [id]: items } };
+  await saveStore(context, next);
+  return refresh(context, session, { store: next });
+}
+
+/**
  * Cites `items` at the cursor. Inside an existing citation the items join it,
  * so a click on [3] and a pick gives [3,4]. With track changes on they become a
  * citation of their own right after it, which review can reject on its own.

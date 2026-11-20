@@ -242,7 +242,7 @@ async function main() {
   r = await refresh();
   const typed = await citeTexts();
   const group = Object.values(r.store.citations).find((items) => items.some((x) => x.locator));
-  check("a marker group with a page", typed.length === before + 1 && /^\[\d+[,–-]\d+\]$/.test(typed.at(-1)) && r.converted === 1
+  check("a marker group with a page", typed.length === before + 1 && /^\[\d+,\d+(, .*)?\]$/.test(typed.at(-1)) && r.converted === 1
     && same(group, [{ id: "lee2010" }, { id: "mueller2020", locator: "12", label: "page" }]), { typed, group, converted: r.converted });
   const text = await bodyText();
   check("an unknown key and an e-mail address stay text", /Unknown: nokey2000/.test($("status").textContent) && text.includes("@nokey2000") && text.includes("anna@example.org") && !text.includes("@lee2010"), { status: $("status").textContent, text: text.slice(-200) });
@@ -773,6 +773,17 @@ async function unused() {
 const cursorAtStart = () => word(async (c) => { c.document.body.paragraphs.getFirst().getNext().getRange("Start").select("Start"); await c.sync(); });
 const cursorAtEnd = () => word(async (c) => { c.document.body.paragraphs.getLast().getRange("End").select("End"); await c.sync(); });
 
+/** Puts the cursor at the start of the nth citation control in the body. */
+const cursorInCite = (nth = 0) => word(async (c) => {
+  const all = c.document.body.contentControls;
+  all.load("items/tag");
+  await c.sync();
+  const cites = all.items.filter(isCite);
+  if (!cites[nth]) throw new Error("no such citation: " + nth);
+  cites[nth].getRange("Start").select("Start");
+  await c.sync();
+});
+
 /** A refresh after everything has settled writes nothing. */
 async function consistent(name) {
   await idle();
@@ -864,6 +875,49 @@ async function renumberReopen() {
   await consistent("after the document closed half-way, the document is consistent again");
 }
 
+// ---- editing a citation -----------------------------------------------------------
+
+async function edit() {
+  const fresh = await unused();
+  await cursorAtStart();
+  let d = nextDone();
+  pick(fresh[0]);
+  await d;
+  await idle();
+  check("citing works in the edit scenario", (await citeTexts())[0] === "[1]", await citeTexts());
+  const cited = await citeTexts();
+  // The cursor in a citation shows the editor with its source.
+  await cursorInCite(0);
+  let open = false;
+  for (let i = 0; i < 50 && !(open = !$("editCitation").hidden); i++) await sleep(200);
+  check("the pane shows the edit UI in a citation", open, $("editCitation").hidden);
+  const rows = () => [...document.querySelectorAll("#editItems .edit-item")];
+  check("the editor lists the cited source", rows().length === 1 && rows()[0].dataset.key === fresh[0], rows().map((r) => r.dataset.key));
+  // A locator prints after the number.
+  rows()[0].querySelector(".edit-locator").value = "12";
+  rows()[0].querySelector(".edit-label").value = "page";
+  d = nextDone();
+  $("editSave").click();
+  await d;
+  await idle();
+  check("an edited locator prints", (await citeTexts())[0] === "[1, p. 12]", await citeTexts());
+  // A suffix appends, then removing the only item deletes the citation.
+  rows()[0].querySelector(".edit-suffix").value = "emphasis added";
+  d = nextDone();
+  $("editSave").click();
+  await d;
+  await idle();
+  check("an edited suffix appends", (await citeTexts())[0] === "[1, p. 12, emphasis added]", await citeTexts());
+  rows()[0].querySelector(".edit-remove-item").click();
+  d = nextDone();
+  $("editSave").click();
+  await d;
+  await idle();
+  // The new citation is gone; the fixture's own citations stand as before it.
+  check("removing the only item deletes the citation", (await citeTexts()).length === cited.length - 1, await citeTexts());
+  await consistent("an edited document stays consistent");
+}
+
 // ---- one body write for a large renumber --------------------------------------------
 
 async function fastpath() {
@@ -934,7 +988,7 @@ async function fastpath() {
   await consistent("a fast document with a thread read leaves a consistent document");
 }
 
-const SCENARIOS = { renumber, "renumber-reopen": renumberReopen, fastpath, main, "main-reopen": mainReopen, template, "template-reopen": templateReopen, markers, sections, "sections-reopen": sectionsReopen };
+const SCENARIOS = { renumber, "renumber-reopen": renumberReopen, fastpath, edit, main, "main-reopen": mainReopen, template, "template-reopen": templateReopen, markers, sections, "sections-reopen": sectionsReopen };
 
 onReady(async () => {
   const { scenario } = await (await fetch("e2e-config.json", { cache: "no-store" })).json();

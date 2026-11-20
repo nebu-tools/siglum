@@ -5,7 +5,7 @@ import style from "../csl/nlm-citation-sequence-brackets.csl";
 import deDE from "../csl/locales-de-DE.xml";
 import enUS from "../csl/locales-en-US.xml";
 import { createRenderer } from "./render.js";
-import { parseSupplement } from "./model.js";
+import { parseSupplement, LABELS } from "./model.js";
 import { parseLibrary, mergeItems, year } from "./library.js";
 import { buildIndex, search } from "./search.js";
 import { lookup } from "./lookup.js";
@@ -42,6 +42,11 @@ function setLanguage(language) {
   showMarked();
   showResults();
   showStatus();
+  if (editing) {
+    // Keep what was typed: re-rendering rebuilds the fields from the items.
+    editing = { id: editing.id, items: readEditor(editing.items) };
+    renderEditor();
+  }
 }
 
 function localeName(locale) {
@@ -126,6 +131,118 @@ function toggleMark(key) {
   showMarked();
   showResults();
   $("q").focus();
+}
+
+// ---- edit citation ------------------------------------------------------------
+
+// The citation the editor shows, {id, items}, or null when it is hidden.
+let editing = null;
+
+function hideEditor() {
+  editing = null;
+  $("editCitation").hidden = true;
+}
+
+function editRow(item) {
+  const row = document.createElement("div");
+  row.className = "edit-item";
+  row.dataset.key = item.id;
+  const key = document.createElement("span");
+  key.className = "edit-key";
+  key.textContent = item.id;
+  row.append(key);
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "edit-remove-item";
+  remove.textContent = "×";
+  remove.setAttribute("aria-label", t("marked.remove", { key: item.id }));
+  remove.addEventListener("click", () => row.remove());
+  row.append(remove);
+  const locator = document.createElement("input");
+  locator.className = "edit-locator";
+  locator.value = item.locator ?? "";
+  locator.setAttribute("aria-label", t("edit.locator"));
+  locator.placeholder = t("edit.locator");
+  row.append(locator);
+  const label = document.createElement("select");
+  label.className = "edit-label";
+  label.setAttribute("aria-label", t("edit.label"));
+  // A label from another source stays selectable, so saving never drops it.
+  const labels = item.label && !Object.hasOwn(LABELS, item.label) ? [item.label, ...Object.keys(LABELS)] : Object.keys(LABELS);
+  label.replaceChildren(new Option("", ""), ...labels.map((l) => new Option(l, l)));
+  label.value = item.label ?? (item.locator ? "page" : "");
+  row.append(label);
+  const prefix = document.createElement("input");
+  prefix.className = "edit-prefix";
+  prefix.value = item.prefix ?? "";
+  prefix.setAttribute("aria-label", t("edit.prefix"));
+  prefix.placeholder = t("edit.prefix");
+  row.append(prefix);
+  const suffix = document.createElement("input");
+  suffix.className = "edit-suffix";
+  suffix.value = item.suffix ?? "";
+  suffix.setAttribute("aria-label", t("edit.suffix"));
+  suffix.placeholder = t("edit.suffix");
+  row.append(suffix);
+  return row;
+}
+
+function renderEditor() {
+  $("editItems").replaceChildren(...editing.items.map(editRow));
+}
+
+/** The items as edited: locators with labels, affixes; empty fields are dropped.
+ * Fields with no editor control travel with their item, so neither saving
+ * nor a language switch while editing drops them. */
+function readEditor(before = []) {
+  const prev = new Map(before.map((x) => [x.id, x]));
+  return [...$("editItems").children].map((row) => {
+    const item = { id: row.dataset.key };
+    const locator = row.querySelector(".edit-locator").value.trim();
+    const label = row.querySelector(".edit-label").value;
+    const prefix = row.querySelector(".edit-prefix").value.trim();
+    const suffix = row.querySelector(".edit-suffix").value.trim();
+    if (locator) { item.locator = locator; if (label) item.label = label; }
+    if (prefix) item.prefix = prefix;
+    if (suffix) item.suffix = suffix;
+    if (prev.get(item.id)?.suppressAuthor) item.suppressAuthor = true;
+    return item;
+  });
+}
+
+async function updateEditor() {
+  if (document.body.hasAttribute("aria-busy")) return;
+  let found = null;
+  try {
+    await Word.run(async (c) => { found = await doc.citationAtCursor(c, session); });
+  } catch {
+    found = null;
+  }
+  if (!found) { hideEditor(); return; }
+  editing = found;
+  renderEditor();
+  $("editCitation").hidden = false;
+}
+
+// Deleting or pasting a citation changes the order of tags. A quiet check after
+// the cursor moves keeps numbers and bibliographies current without a click.
+// It does not run while citation numbers are known not to be up to date: the
+// status line then asks for a click on Refresh.
+//
+// Showing the edit UI follows the same cursor move, on its own debounce, but
+// through this one handler: registering a second DocumentSelectionChanged
+// handler stops the watcher's refresh on real Word. Selecting text never
+// writes by itself.
+function watch() {
+  let timer = null;
+  const check = () => queue.check().catch((e) => console.error(e));
+  let editTimer = null;
+  Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, () => {
+    clearTimeout(timer);
+    timer = setTimeout(check, 700);
+    clearTimeout(editTimer);
+    editTimer = setTimeout(() => updateEditor().catch((e) => console.error(e)), 400);
+  });
 }
 
 // ---- status ---------------------------------------------------------------------
@@ -269,6 +386,22 @@ function wire() {
   $("supplement").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); const h = state.hits[state.active]; if (h) cite([h.id]); } });
   $("bib").addEventListener("click", () => op((c) => doc.insertBibliography(c, session)));
   $("refresh").addEventListener("click", () => op((c) => doc.convertMarkers(c, session)));
+  $("editSave").addEventListener("click", async () => {
+    if (!editing) return;
+    const id = editing.id;
+    const items = readEditor(editing.items);
+    const r = await op((c) => doc.editCitation(c, session, id, items));
+    if (!r) return;
+    if (!items.length) { hideEditor(); return; }
+    editing = { id, items };
+    renderEditor();
+  });
+  $("editRemove").addEventListener("click", async () => {
+    if (!editing) return;
+    const r = await op((c) => doc.editCitation(c, session, editing.id, []));
+    if (!r) return;
+    hideEditor();
+  });
   $("file").addEventListener("change", (e) => { importFiles([...e.target.files]); e.target.value = ""; });
   $("lookup").addEventListener("submit", (e) => { e.preventDefault(); fetchIdent($("ident").value); });
   $("language").addEventListener("change", (e) => {
@@ -276,19 +409,6 @@ function wire() {
     setLanguage(e.target.value);
   });
   $("locale").addEventListener("change", (e) => op((c) => doc.setLocale(c, session, e.target.value)));
-}
-
-// Deleting or pasting a citation changes the order of tags. A quiet check after
-// the cursor moves keeps numbers and bibliographies current without a click.
-// It does not run while citation numbers are known not to be up to date: the
-// status line then asks for a click on Refresh.
-function watch() {
-  let timer = null;
-  const check = () => queue.check().catch((e) => console.error(e));
-  Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, () => {
-    clearTimeout(timer);
-    timer = setTimeout(check, 700);
-  });
 }
 
 Office.onReady(async () => {
