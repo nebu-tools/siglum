@@ -42,7 +42,11 @@ function setLanguage(language) {
   showMarked();
   showResults();
   showStatus();
-  if (editing) renderEditor();
+  if (editing) {
+    // Keep what was typed: re-rendering rebuilds the fields from the items.
+    editing = { id: editing.id, items: readEditor() };
+    renderEditor();
+  }
 }
 
 function localeName(locale) {
@@ -163,7 +167,9 @@ function editRow(item) {
   const label = document.createElement("select");
   label.className = "edit-label";
   label.setAttribute("aria-label", t("edit.label"));
-  label.replaceChildren(new Option("", ""), ...Object.keys(LABELS).map((l) => new Option(l, l)));
+  // A label from another source stays selectable, so saving never drops it.
+  const labels = item.label && !Object.hasOwn(LABELS, item.label) ? [item.label, ...Object.keys(LABELS)] : Object.keys(LABELS);
+  label.replaceChildren(new Option("", ""), ...labels.map((l) => new Option(l, l)));
   label.value = item.label ?? (item.locator ? "page" : "");
   row.append(label);
   const prefix = document.createElement("input");
