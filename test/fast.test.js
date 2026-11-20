@@ -324,6 +324,14 @@ test("editing a citation away deletes its control and prunes the store", async (
   assert.deepEqual(Object.keys(storeFromXml(savedStores.at(-1)).citations), ["2"]);
 });
 
+test("editing keeps fields the UI does not show", async () => {
+  const { ctx, backing, savedStores } = context(1);
+  const r = await editCitation(ctx, realSession, "1", [{ id: "a", locator: "7", label: "page", suppressAuthor: true }], { store: realStore({ 1: [{ id: "a" }] }) });
+  assert.equal(r.work, null);
+  assert.equal(backing[0], "[1, p. 7]");
+  assert.deepEqual(storeFromXml(savedStores.at(-1)).citations["1"], [{ id: "a", locator: "7", label: "page", suppressAuthor: true }]);
+});
+
 test("editing a citation that is gone fails", async () => {
   const { ctx } = context(1);
   await assert.rejects(editCitation(ctx, realSession, "9", [{ id: "a" }], { store: realStore({ 1: [{ id: "a" }] }) }),

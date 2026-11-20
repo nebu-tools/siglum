@@ -373,7 +373,11 @@ function wire() {
   $("refresh").addEventListener("click", () => op((c) => doc.convertMarkers(c, session)));
   $("editSave").addEventListener("click", async () => {
     if (!editing) return;
-    const { id, items } = { id: editing.id, items: readEditor() };
+    const items = readEditor();
+    // Fields with no editor control travel with their item, so saving never drops them.
+    const prev = new Map(editing.items.map((x) => [x.id, x]));
+    for (const it of items) if (prev.get(it.id)?.suppressAuthor) it.suppressAuthor = true;
+    const id = editing.id;
     const r = await op((c) => doc.editCitation(c, session, id, items));
     if (!r) return;
     if (!items.length) { hideEditor(); return; }
