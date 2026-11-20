@@ -21,6 +21,14 @@
       <button id="bib" type="button" data-i18n="bibliography.insert">Insert bibliography</button>
       <button id="refresh" type="button" data-i18n="refresh">Refresh</button>
     </div>
+    <section id="editCitation" class="edit" hidden>
+      <h2 data-i18n="edit.heading">Edit citation</h2>
+      <div id="editItems"></div>
+      <div class="actions">
+        <button id="editSave" type="button" data-i18n="edit.save">Save</button>
+        <button id="editRemove" type="button" data-i18n="edit.remove">Remove citation</button>
+      </div>
+    </section>
     <details class="sources">
       <summary data-i18n="sources.add">Add sources</summary>
       <label class="file"><span data-i18n="sources.file">Import a file (.bib, .ris, .json)</span>

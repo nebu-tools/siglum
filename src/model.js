@@ -23,7 +23,8 @@ import { KEY } from "./library.js";
 
 /**
  * The store: `sources` maps a key to a CSL-JSON item, `citations` maps a
- * citation's id to its items [{id, locator?, label?, suffix?}], and `settings`
+ * citation's id to its items [{id, locator?, label?, prefix?, suffix?,
+ * suppressAuthor?}], and `settings`
  * holds what belongs to the document: `locale`, the language of its citations
  * and bibliographies.
  */
@@ -160,7 +161,7 @@ export function findMarkers(text) {
 }
 
 // CSL locator labels and the abbreviations people type for them, English and German.
-const LABELS = {
+export const LABELS = {
   page: ["p", "pp", "pg", "page", "pages", "s", "seite", "seiten"],
   chapter: ["ch", "chap", "chapter", "chapters", "kap", "kapitel"],
   section: ["sec", "sect", "section", "sections", "§", "§§", "abschn", "abschnitt", "abschnitte"],

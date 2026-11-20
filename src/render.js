@@ -74,7 +74,7 @@ export function resolveLocale(tag, available) {
 
 /**
  * Creates a renderer for one style. `locales` maps a language tag to locale XML.
- * render(sections, library, lang) takes [{citations: [{items: [{id, locator?, label?, suffix?}]}]}]
+ * render(sections, library, lang) takes [{citations: [{items: [{id, locator?, label?, prefix?, suffix?, suppressAuthor?}]}]}]
  * and returns, per section, the runs of each citation and of each entry, in
  * the bundled locale that fits `lang`.
  *
@@ -122,6 +122,10 @@ export function createRenderer({ style, locales, cacheSize = 64 }) {
 function citationItem(x) {
   const item = { id: x.id };
   if (x.locator) { item.locator = x.locator; item.label = x.label; }
+  // Affixes are joined here for the bundled numbered style; an author-date
+  // style takes them as they are.
+  if (x.prefix) item.prefix = x.prefix;
   if (x.suffix) item.suffix = ", " + x.suffix;
+  if (x.suppressAuthor) item["suppress-author"] = true;
   return item;
 }
