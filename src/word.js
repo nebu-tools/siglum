@@ -54,7 +54,7 @@ async function saveStore(context, store) {
  * The document's store. Every operation starts here. A document without one
  * gets an empty store in the session's language; the next save keeps it.
  */
-async function openStore(context, session) {
+export async function openStore(context, session) {
   const parts = context.document.customXmlParts.getByNamespace(NS);
   parts.load("items");
   await context.sync();

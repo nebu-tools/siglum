@@ -51,7 +51,7 @@ function setLanguage(language) {
   showStatus();
   if (editing) {
     // Keep what was typed: re-rendering rebuilds the fields from the items.
-    editing = { id: editing.id, items: readEditor(editing.items) };
+    editing = { id: editing.id, items: readEditor() };
     renderEditor();
   }
 }
@@ -220,10 +220,9 @@ function renderEditor() {
 }
 
 /** The items as edited: locators with labels, affixes; empty fields are dropped.
- * Fields with no editor control travel with their item, so neither saving
- * nor a language switch while editing drops them. */
-function readEditor(before = []) {
-  const prev = new Map(before.map((x) => [x.id, x]));
+ * suppressAuthor comes solely from its checkbox now that the editor has one:
+ * an unchecked box restores the author. */
+function readEditor() {
   return [...$("editItems").children].map((row) => {
     const item = { id: row.dataset.key };
     const locator = row.querySelector(".edit-locator").value.trim();
@@ -233,7 +232,7 @@ function readEditor(before = []) {
     if (locator) { item.locator = locator; if (label) item.label = label; }
     if (prefix) item.prefix = prefix;
     if (suffix) item.suffix = suffix;
-    if (row.querySelector(".edit-suppress").checked || prev.get(item.id)?.suppressAuthor) item.suppressAuthor = true;
+    if (row.querySelector(".edit-suppress").checked) item.suppressAuthor = true;
     return item;
   });
 }
@@ -416,8 +415,7 @@ function wire() {
   $("refresh").addEventListener("click", () => op((c) => doc.convertMarkers(c, session)));
   $("editSave").addEventListener("click", async () => {
     if (!editing) return;
-    const id = editing.id;
-    const items = readEditor(editing.items);
+    const { id, items } = { id: editing.id, items: readEditor() };
     const r = await op((c) => doc.editCitation(c, session, id, items));
     if (!r) return;
     if (!items.length) { hideEditor(); return; }
@@ -450,6 +448,12 @@ Office.onReady(async () => {
   fillSettings();
   setLanguage(savedLanguage() ?? Office.context.displayLanguage);
   wire();
+  // The first refresh must already use the stored style: planning with the
+  try {
+    await Word.run(async (c) => useStyle((await doc.openStore(c, session)).settings.style));
+  } catch (e) {
+    console.error(e);
+  }
   await op((c) => doc.convertMarkers(c, session));
   watch();
   $("q").focus();

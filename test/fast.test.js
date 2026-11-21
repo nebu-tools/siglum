@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { refresh, readControls, editCitation, citationAtCursor, setStyle } from "../src/word.js";
+import { refresh, readControls, editCitation, citationAtCursor, setStyle, openStore } from "../src/word.js";
 import { createRenderer } from "../src/render.js";
 import { UserError } from "../src/messages.js";
 import { fastEligible, FAST_CITES_MIN } from "../src/fast.js";
@@ -344,6 +344,7 @@ test("setStyle stores the document's style, unknown falls back to NLM", async ()
   const r = await setStyle(ctx, realSession, "apa");
   assert.equal(r.work, null);
   assert.equal(storeFromXml(savedStores.at(-1)).settings.style, "apa");
+  assert.equal((await openStore(ctx, realSession)).settings.style, "apa");
   await setStyle(ctx, realSession, "chicago");
   assert.equal(storeFromXml(savedStores.at(-1)).settings.style, "nlm");
 });
