@@ -454,7 +454,10 @@ function wire() {
     $("restore").hidden = true;
   });
   $("restoreDo").addEventListener("click", async () => {
-    const r = await op((c) => doc.restoreBackup(c, session));
+    const store = await op((c) => doc.restoreBackup(c, session));
+    if (!store) return;
+    useStyle(store.settings.style);
+    const r = await op((c) => doc.refresh(c, session, { store }));
     if (!r) return;
     note(() => t("status.restored"));
     $("restore").hidden = true;

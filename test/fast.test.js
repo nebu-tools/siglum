@@ -6,7 +6,7 @@ import { createRenderer } from "../src/render.js";
 import { UserError } from "../src/messages.js";
 import { fastEligible, FAST_CITES_MIN } from "../src/fast.js";
 import { controlTexts } from "../src/ooxml.js";
-import { CITE_PREFIX, BIB_TAG, storeFromXml } from "../src/model.js";
+import { CITE_PREFIX, BIB_TAG, NS, storeFromXml } from "../src/model.js";
 import { markup, bodyPackage } from "./ooxml-fixtures.js";
 
 const { sdt, r, p } = markup();
@@ -364,8 +364,10 @@ test("a damaged store restores from the backup", async () => {
   const store = realStore({ 1: [{ id: "a" }], 2: [{ id: "b", locator: "7", label: "page" }] });
   await editCitation(ctx, realSession, "2", store.citations["2"], { store });
   assert.equal(backing[1], "[2, p. 7]");
-  parts.find((p) => p.ns === "urn:siglum:store:1").setXml('<siglum xmlns="urn:siglum:store:1"><oops/>');
-  const r = await restoreBackup(ctx, realSession);
+  parts.find((p) => p.ns === NS).setXml(`<siglum xmlns="${NS}"><oops/>`);
+  const restored = await restoreBackup(ctx, realSession);
+  assert.deepEqual(restored.citations, store.citations);
+  const r = await refresh(ctx, realSession, { store: restored });
   assert.equal(r.work, null);
   assert.deepEqual(backing, ["[1]", "[2, p. 7]"]);
   assert.deepEqual(await backupStatus(ctx), { main: "ok", backup: "ok" });

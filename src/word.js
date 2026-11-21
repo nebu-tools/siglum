@@ -103,8 +103,10 @@ export async function backupStatus(context) {
 }
 
 /**
- * Replaces a missing or unreadable store with the backup and brings the
- * document up to date. Throws when there is no backup to restore.
+ * Reads the backup, validates it and writes it over a missing or damaged
+ * main store. Returns the restored store; the caller selects its renderer
+ * and refreshes, so an APA document does not refresh as NLM first. Throws
+ * when there is no backup to restore.
  */
 export async function restoreBackup(context, session) {
   const backups = context.document.customXmlParts.getByNamespace(BACKUP_NS);
@@ -120,7 +122,7 @@ export async function restoreBackup(context, session) {
   await context.sync();
   if (mains.items[0]) mains.items[0].setXml(storeToXml(store));
   else context.document.customXmlParts.add(storeToXml(store));
-  return refresh(context, session, { store });
+  return store;
 }
 
 /**

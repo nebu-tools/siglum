@@ -951,9 +951,10 @@ async function library() {
   check("a damaged store offers its backup", !$("restore").hidden, $("restore").hidden);
   d = nextDone();
   $("restoreDo").click();
-  const fixed = await d;
+  const restored = await d;
+  const fixed = await nextDone();
   await idle();
-  check("restoring brings the citations back", !fixed?.error && same(await citeTexts(), numbered), await citeTexts());
+  check("restoring brings the citations back", !restored?.error && !fixed?.error && same(await citeTexts(), numbered), { restored: !restored?.error, cites: await citeTexts() });
   await consistent("a restored document stays consistent");
   // Unlinking removes the controls and the store but keeps the text.
   d = nextDone();
