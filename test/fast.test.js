@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { refresh, readControls, editCitation, citationAtCursor } from "../src/word.js";
+import { refresh, readControls, editCitation, citationAtCursor, setStyle } from "../src/word.js";
 import { createRenderer } from "../src/render.js";
 import { UserError } from "../src/messages.js";
 import { fastEligible, FAST_CITES_MIN } from "../src/fast.js";
@@ -336,4 +336,14 @@ test("editing a citation that is gone fails", async () => {
   const { ctx } = context(1);
   await assert.rejects(editCitation(ctx, realSession, "9", [{ id: "a" }], { store: realStore({ 1: [{ id: "a" }] }) }),
     (e) => e instanceof UserError && e.key === "error.noSuchCitation");
+});
+
+test("setStyle stores the document's style, unknown falls back to NLM", async () => {
+  const { ctx, savedStores } = context(1);
+  await editCitation(ctx, realSession, "1", [{ id: "a" }], { store: realStore({ 1: [{ id: "a" }] }) });
+  const r = await setStyle(ctx, realSession, "apa");
+  assert.equal(r.work, null);
+  assert.equal(storeFromXml(savedStores.at(-1)).settings.style, "apa");
+  await setStyle(ctx, realSession, "chicago");
+  assert.equal(storeFromXml(savedStores.at(-1)).settings.style, "nlm");
 });

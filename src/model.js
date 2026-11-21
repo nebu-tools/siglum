@@ -26,10 +26,19 @@ import { KEY } from "./library.js";
  * citation's id to its items [{id, locator?, label?, prefix?, suffix?,
  * suppressAuthor?}], and `settings`
  * holds what belongs to the document: `locale`, the language of its citations
- * and bibliographies.
+ * and bibliographies, and `style`, the id of its citation style.
  */
 export function emptyStore(locale) {
-  return { sources: {}, citations: {}, settings: { locale } };
+  return { sources: {}, citations: {}, settings: { locale, style: "nlm" } };
+}
+
+/** The bundled citation styles, by id. `nlm` is the default. */
+export const STYLES = ["nlm", "apa"];
+
+/** The store's style if it names a bundled one, else the default. */
+export function resolveStyle(settings) {
+  const style = settings?.style;
+  return STYLES.includes(style) ? style : "nlm";
 }
 
 const escapeXml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

@@ -30,7 +30,7 @@ test("the pane and the code use only messages that exist", () => {
   }
   for (const key of used) assert.ok(key in MESSAGES.en, key);
   // Keys that the code builds from parts.
-  const built = (key) => /^locale\./.test(key) || ["results.none", "results.emptyLibrary", "lookup.added", "lookup.known"].includes(key);
+  const built = (key) => /^(locale|style)\./.test(key) || ["results.none", "results.emptyLibrary", "lookup.added", "lookup.known"].includes(key);
   const unused = Object.keys(MESSAGES.en).filter((key) => !used.includes(key) && !built(key));
   assert.deepEqual(unused, []);
 });

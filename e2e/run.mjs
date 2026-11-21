@@ -71,6 +71,7 @@ const SCENARIOS = [
   ["renumber-reopen", "renumber's result, saved while the batches ran, opened again", again("renumber")],
   ["fastpath", "a single-section document of 600 citations renumbered in one body write: a text box, a person's bookmark and a comment thread", (name) => withPane(generate({ pages: 60, citations: 600, bibs: 1, refs: 200, seed: 7 }).parts, file(`${name}-in.docx`))],
   ["edit", "citing, then editing the citation's locator in the pane and removing it", (name) => withPane(generate({ pages: 2, citations: 2, bibs: 1, refs: 10, seed: 5 }).parts, file(`${name}-in.docx`))],
+  ["style", "citing, switching to APA and back, omitting the author meanwhile", (name) => withPane(generate({ pages: 2, citations: 2, bibs: 1, refs: 10, seed: 5 }).parts, file(`${name}-in.docx`))],
 ];
 
 async function scenario([name, what, make]) {

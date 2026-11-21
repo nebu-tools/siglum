@@ -4,7 +4,7 @@ Everything here runs the add-in in real Word for Windows, driven from WSL on the
 
 | File | What it is |
 | --- | --- |
-| `run.mjs` + `page.js` | The end-to-end suite (`npm run e2e`): pass or fail per check, in ten scenarios. |
+| `run.mjs` + `page.js` | The end-to-end suite (`npm run e2e`): pass or fail per check, in twelve scenarios. |
 | `measure.mjs` + `measure.js` | Timings on generated documents: opening the pane, refresh, citing, a typed marker, the selection watcher, track changes, a full rewrite. |
 | `probe.mjs` + `probe.js` | Findings, not checks, about what the README lists as limits: citations in footnotes, endnotes, headers and text boxes, citations pasted into another document, two Word instances on one file. |
 | `report.mjs` | Puts `measure-*.json` files side by side as a Markdown table. |
@@ -32,6 +32,7 @@ The rig reads every stored name (tags, title prefix, namespace) from `src/model.
 | `renumber-reopen` | `renumber`'s result, saved while the batches ran, opened again: the first refresh writes the rest, the next one nothing. |
 | `fastpath` | A generated document of 600 citations: a new first citation renumbers them in one body write after the bibliographies; a text box, a person's bookmark and a comment thread pass through. |
 | `edit` | Citing, then editing the citation's page and note in the pane and removing the citation again. |
+| `style` | Citing, switching to APA and back, omitting the author meanwhile. |
 
 A check that fails because of a defect listed in the README's limits is reported as `KNOWN` with the reason and does not fail the run.
 

@@ -2,10 +2,11 @@
 /* global Office, Word */
 
 import style from "../csl/nlm-citation-sequence-brackets.csl";
+import apaStyle from "../csl/apa.csl";
 import deDE from "../csl/locales-de-DE.xml";
 import enUS from "../csl/locales-en-US.xml";
 import { createRenderer } from "./render.js";
-import { parseSupplement, LABELS } from "./model.js";
+import { parseSupplement, LABELS, STYLES, resolveStyle } from "./model.js";
 import { parseLibrary, mergeItems, year } from "./library.js";
 import { buildIndex, search } from "./search.js";
 import { lookup } from "./lookup.js";
@@ -13,8 +14,14 @@ import { LANGUAGES, pickLanguage, translator, UserError } from "./messages.js";
 import * as doc from "./word.js";
 import { createQueue } from "./queue.js";
 
-// A style picker would replace `style` here. Nothing else knows the style.
-const session = { renderer: createRenderer({ style, locales: { "en-US": enUS, "de-DE": deDE } }), locale: "en-US" };
+// A style picker swaps `session.renderer`, not the style in place. Nothing
+// else knows the style: the renderer for each id has a cache of its own.
+const renderers = {
+  nlm: () => createRenderer({ style, locales: { "en-US": enUS, "de-DE": deDE } }),
+  apa: () => createRenderer({ style: apaStyle, locales: { "en-US": enUS, "de-DE": deDE } }),
+};
+const rendererFor = (id) => (renderers[id] ?? renderers.nlm)();
+const session = { renderer: rendererFor("nlm"), locale: "en-US" };
 const LANGUAGE_KEY = "siglum.language";
 const $ = (id) => document.getElementById(id);
 
@@ -54,9 +61,20 @@ function localeName(locale) {
   return name === "locale." + locale ? locale : name;
 }
 
+function styleName(id) {
+  const name = t("style." + id);
+  return name === "style." + id ? id : name;
+}
+
 function fillSettings() {
   $("language").replaceChildren(...Object.entries(LANGUAGES).map(([value, name]) => new Option(name, value)));
   $("locale").replaceChildren(...session.renderer.locales.map((l) => new Option(localeName(l), l)));
+  $("style").replaceChildren(...STYLES.map((s) => new Option(styleName(s), s)));
+}
+
+function useStyle(id) {
+  session.renderer = rendererFor(resolveStyle({ style: id }));
+  $("style").value = resolveStyle({ style: id });
 }
 
 // ---- search ---------------------------------------------------------------------
@@ -65,6 +83,7 @@ function setStore(store) {
   state.library = store.sources;
   state.index = buildIndex(state.library);
   $("locale").value = store.settings.locale;
+  useStyle(store.settings.style);
   showResults();
 }
 
@@ -184,6 +203,15 @@ function editRow(item) {
   suffix.setAttribute("aria-label", t("edit.suffix"));
   suffix.placeholder = t("edit.suffix");
   row.append(suffix);
+  const noAuthor = document.createElement("label");
+  noAuthor.className = "edit-noauthor";
+  const suppress = document.createElement("input");
+  suppress.type = "checkbox";
+  suppress.className = "edit-suppress";
+  suppress.checked = !!item.suppressAuthor;
+  suppress.setAttribute("aria-label", t("edit.suppressAuthor"));
+  noAuthor.append(suppress, document.createTextNode(t("edit.suppressAuthor")));
+  row.append(noAuthor);
   return row;
 }
 
@@ -205,7 +233,7 @@ function readEditor(before = []) {
     if (locator) { item.locator = locator; if (label) item.label = label; }
     if (prefix) item.prefix = prefix;
     if (suffix) item.suffix = suffix;
-    if (prev.get(item.id)?.suppressAuthor) item.suppressAuthor = true;
+    if (row.querySelector(".edit-suppress").checked || prev.get(item.id)?.suppressAuthor) item.suppressAuthor = true;
     return item;
   });
 }
@@ -409,6 +437,10 @@ function wire() {
     setLanguage(e.target.value);
   });
   $("locale").addEventListener("change", (e) => op((c) => doc.setLocale(c, session, e.target.value)));
+  $("style").addEventListener("change", (e) => {
+    session.renderer = rendererFor(e.target.value);
+    op((c) => doc.setStyle(c, session, e.target.value));
+  });
 }
 
 Office.onReady(async () => {

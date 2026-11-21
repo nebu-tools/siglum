@@ -112,7 +112,7 @@ The pane is in English or German. It follows the display language of Office, and
 
 ## Current limits
 
-- Siglum has one citation style: NLM (Vancouver) with numbers in brackets, in order of appearance. To use another style, replace the `.csl` file and its import in `src/taskpane.js`.
+- Siglum bundles two citation styles: NLM (Vancouver), with numbers in brackets in order of appearance, and APA (7th edition), author-date. Switch under Settings; the document remembers its style. An author-date citation can omit its author ("(2020)"); in NLM that changes nothing. Bibliographies keep a hanging indent in both styles and are single-spaced.
 - Siglum finds citations in the body text only. A citation in a footnote, an endnote, a header, a footer or a text box is not numbered or refreshed: it keeps the text it had, such as `[?]`, and its sources are not in a bibliography.
 - When the document has tracked changes, Siglum reads the citations from the body's XML. If that XML cannot be read, or does not hold the same citations that Word lists, Siglum changes nothing and says so in the pane. Accept or reject the tracked changes around the citations, then refresh.
 - The bundled style prints locators after the number (`[1, p. 12]`) and appends notes (`, see also`); it does not print a prefix, and `suppress-author` has no visible effect in a numbered style. The NLM style file is Siglum's variant of the upstream style with locator rendering; upstream styles drop stored locators.
