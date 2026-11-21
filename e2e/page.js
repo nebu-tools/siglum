@@ -918,6 +918,46 @@ async function edit() {
   await consistent("an edited document stays consistent");
 }
 
+// ---- switching the citation style -------------------------------------------
+
+async function style() {
+  const fresh = await unused();
+  await cursorAtStart();
+  let d = nextDone();
+  pick(fresh[0]);
+  await d;
+  await idle();
+  check("citing works in the style scenario", (await citeTexts())[0] === "[1]", await citeTexts());
+  // Switching to APA renders the same citation author-date.
+  const style = $("style");
+  style.value = "apa";
+  style.dispatchEvent(new Event("change", { bubbles: true }));
+  d = nextDone();
+  await d;
+  await idle();
+  const dated = await citeTexts();
+  check("APA renders the citation author-date", /^\([^()]*\d{4}[^()]*\)$/.test(dated[0]), dated);
+  // Omitting the author leaves the year in parentheses.
+  await cursorInCite(0);
+  let open = false;
+  for (let i = 0; i < 50 && !(open = !$("editCitation").hidden); i++) await sleep(200);
+  check("the pane shows the edit UI in the style scenario", open, $("editCitation").hidden);
+  document.querySelector("#editItems .edit-suppress").checked = true;
+  d = nextDone();
+  $("editSave").click();
+  await d;
+  await idle();
+  const bare = await citeTexts();
+  check("omitting the author leaves the year", /^\((\d{4}[a-z]?)\)$/.test(bare[0]), bare);
+  // Switching back restores the numbers.
+  style.value = "nlm";
+  style.dispatchEvent(new Event("change", { bubbles: true }));
+  await nextDone();
+  await idle();
+  check("switching back restores the numbered citation", (await citeTexts())[0] === "[1]", await citeTexts());
+  await consistent("a style change leaves a consistent document");
+}
+
 // ---- one body write for a large renumber --------------------------------------------
 
 async function fastpath() {
@@ -988,7 +1028,7 @@ async function fastpath() {
   await consistent("a fast document with a thread read leaves a consistent document");
 }
 
-const SCENARIOS = { renumber, "renumber-reopen": renumberReopen, fastpath, edit, main, "main-reopen": mainReopen, template, "template-reopen": templateReopen, markers, sections, "sections-reopen": sectionsReopen };
+const SCENARIOS = { renumber, "renumber-reopen": renumberReopen, fastpath, edit, style, main, "main-reopen": mainReopen, template, "template-reopen": templateReopen, markers, sections, "sections-reopen": sectionsReopen };
 
 onReady(async () => {
   const { scenario } = await (await fetch("e2e-config.json", { cache: "no-store" })).json();

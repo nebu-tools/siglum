@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createRenderer, htmlToRuns, resolveLocale, runsText } from "../src/render.js";
-import { plan, mayTouch, storeToXml, storeFromXml, emptyStore, citeTitle, keysFromTitle, BIB_EMPTY, CITE_NEW, CITE_PREFIX, NS } from "../src/model.js";
+import { plan, mayTouch, storeToXml, storeFromXml, emptyStore, citeTitle, keysFromTitle, BIB_EMPTY, CITE_NEW, CITE_PREFIX, NS, resolveStyle } from "../src/model.js";
 
 const csl = (f) => fs.readFileSync(new URL("../csl/" + f, import.meta.url), "utf8");
 const renderer = createRenderer({
@@ -85,6 +85,13 @@ test("locators print after the number, a plain suffix too", () => {
   assert.deepEqual(p.citations.map((c) => runsText(c.runs)), ["[1, see the table]", "[1, p. 12,2]"]);
 });
 
+test("resolveStyle defaults old and unknown documents to NLM", () => {
+  assert.equal(resolveStyle({}), "nlm");
+  assert.equal(resolveStyle({ style: "apa" }), "apa");
+  assert.equal(resolveStyle({ style: "chicago" }), "nlm");
+  assert.equal(resolveStyle(null), "nlm");
+});
+
 test("emptied citations go away, tracked deletions wait", () => {
   const p = plan(
     [cite("1", ""), cite("2", " ", { original: "" }), cite("3", "", { original: "[1]" }), cite("4", CITE_NEW), bib()],
@@ -133,5 +140,5 @@ test("the store survives XML", () => {
   for (const json of ["{", "null", "[]", "{\"sources\":{},\"citations\":{}}", "{\"sources\":[],\"citations\":{},\"settings\":{\"locale\":\"en-US\"}}", "{\"sources\":{},\"citations\":{},\"settings\":{}}"]) {
     assert.throws(() => storeFromXml(damaged(json)), /damaged/, json);
   }
-  assert.deepEqual(storeFromXml(storeToXml(emptyStore("de-DE"))), { sources: {}, citations: {}, settings: { locale: "de-DE" } });
+  assert.deepEqual(storeFromXml(storeToXml(emptyStore("de-DE"))), { sources: {}, citations: {}, settings: { locale: "de-DE", style: "nlm" } });
 });

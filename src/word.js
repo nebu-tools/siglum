@@ -6,7 +6,7 @@
 
 import {
   NS, CITE_PREFIX, BIB_TAG, CITE_NEW,
-  emptyStore, storeToXml, storeFromXml, newId, citeTitle, findMarkers, mayTouch, plan, paragraphsOf,
+  emptyStore, storeToXml, storeFromXml, newId, citeTitle, findMarkers, mayTouch, plan, paragraphsOf, resolveStyle,
 } from "./model.js";
 import { documentText, UserError } from "./messages.js";
 import { controlTexts, paragraphStyle, OoxmlError, runXml, runsText, escapeXml } from "./ooxml.js";
@@ -54,7 +54,7 @@ async function saveStore(context, store) {
  * The document's store. Every operation starts here. A document without one
  * gets an empty store in the session's language; the next save keeps it.
  */
-async function openStore(context, session) {
+export async function openStore(context, session) {
   const parts = context.document.customXmlParts.getByNamespace(NS);
   parts.load("items");
   await context.sync();
@@ -638,6 +638,14 @@ export async function addSources(context, session, merge) {
 export async function setLocale(context, session, locale) {
   const store = await openStore(context, session);
   const next = { ...store, settings: { ...store.settings, locale: session.renderer.resolve(locale) } };
+  await saveStore(context, next);
+  return refresh(context, session, { store: next });
+}
+
+/** Switches the document's citation style; unknown ids fall back to NLM. */
+export async function setStyle(context, session, id) {
+  const store = await openStore(context, session);
+  const next = { ...store, settings: { ...store.settings, style: resolveStyle({ style: id }) } };
   await saveStore(context, next);
   return refresh(context, session, { store: next });
 }

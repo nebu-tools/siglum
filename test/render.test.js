@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { createRenderer, runsText } from "../src/render.js";
 
 const csl = (f) => fs.readFileSync(new URL("../csl/" + f, import.meta.url), "utf8");
+const apaStyle = csl("apa.csl");
 const renderer = createRenderer({
   style: csl("nlm-citation-sequence-brackets.csl"),
   locales: { "en-US": csl("locales-en-US.xml"), "de-DE": csl("locales-de-DE.xml") },
@@ -39,6 +40,25 @@ test("a prefix prints before, a suffix after", () => {
 
 test("suppress-author is inert in the numbered style", () => {
   assert.equal(text([{ id: "a", suppressAuthor: true }]), "[1]");
+});
+
+test("APA renders author-date citations", () => {
+  const apa = (items, locale = "en-US") => {
+    const e = createRenderer({ style: apaStyle, locales: { "en-US": csl("locales-en-US.xml"), "de-DE": csl("locales-de-DE.xml") } });
+    return runsText(e.render([{ citations: [{ items }] }], lib, locale)[0].citations[0]);
+  };
+  assert.equal(apa([{ id: "a" }]), "(Alpha, 2020)");
+  assert.equal(apa([{ id: "a", locator: "12", label: "page" }]), "(Alpha, 2020, p. 12)");
+  assert.equal(apa([{ id: "a", suffix: "emphasis added" }]), "(Alpha, 2020, emphasis added)");
+  assert.equal(apa([{ id: "a", prefix: "see " }]), "(see Alpha, 2020)");
+  assert.equal(apa([{ id: "a", suppressAuthor: true }]), "(2020)");
+  assert.equal(apa([{ id: "a" }, { id: "b" }]), "(Alpha, 2020; Beta, 2021)");
+  const both = () => {
+    const e = createRenderer({ style: apaStyle, locales: { "en-US": csl("locales-en-US.xml"), "de-DE": csl("locales-de-DE.xml") } });
+    const withD = { ...lib, d: { id: "d", type: "article-journal", title: "Four", author: [{ family: "Alpha", given: "Ann" }], issued: { "date-parts": [[2020]] } } };
+    return e.render([{ citations: [{ items: [{ id: "a" }] }, { items: [{ id: "d" }] }] }], withD, "en-US")[0].citations.map(runsText);
+  };
+  assert.deepEqual(both(), ["(Alpha, 2020b)", "(Alpha, 2020a)"]);
 });
 
 test("the bundled style emits no small caps runs", () => {
