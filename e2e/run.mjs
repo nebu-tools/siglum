@@ -82,7 +82,8 @@ async function scenario([name, what, make]) {
   const parts = saved(`${name}.docx`);
   const doc = parts["word/document.xml"];
   const { parts: n } = storeOf(parts);
-  check(`${name}: the saved file holds one store`, name === "library" ? n === 0 : n === 1, n);
+  if (name === "library") check("library: the saved file holds no store", n === 0, n);
+  else check(`${name}: the saved file holds one store`, n === 1, n);
   if (name === "main") {
     check("main: saved citations are content controls", tagged(doc, CITE_PREFIX) >= 8, tagged(doc, CITE_PREFIX));
     check("main: saved with two bibliographies", tagged(doc, BIB_TAG + '"') === 2, tagged(doc, BIB_TAG + '"'));
