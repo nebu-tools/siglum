@@ -32,7 +32,8 @@ The rig reads every stored name (tags, title prefix, namespace) from `src/model.
 | `renumber-reopen` | `renumber`'s result, saved while the batches ran, opened again: the first refresh writes the rest, the next one nothing. |
 | `fastpath` | A generated document of 600 citations: a new first citation renumbers them in one body write after the bibliographies; a text box, a person's bookmark and a comment thread pass through. |
 | `edit` | Citing, then editing the citation's page and note in the pane and removing the citation again. |
-| `style` | Citing, switching to APA and back, omitting the author meanwhile. |
+| `style` | Citing, switching the citation style, omitting the author, and switching back. |
+| `library` | Citing, damaging the stored data, restoring the backup, then removing Siglum from the document. |
 
 A check that fails because of a defect listed in the README's limits is reported as `KNOWN` with the reason and does not fail the run.
 

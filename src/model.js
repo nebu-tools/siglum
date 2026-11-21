@@ -6,6 +6,8 @@
 
 /** Namespace and root element of the custom XML part that holds the store. */
 export const NS = "urn:siglum:store:1";
+/** Namespace of the custom XML part that holds the last saved store. */
+export const BACKUP_NS = "urn:siglum:store:backup:1";
 export const ROOT = "siglum";
 /** Tag of a citation's inline content control, followed by the citation's id. */
 export const CITE_PREFIX = "siglum:cite:";
@@ -45,8 +47,8 @@ const escapeXml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(
 const unescapeXml = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 const PAYLOAD = new RegExp(`<${ROOT}\\b[^>]*>([\\s\\S]*)</${ROOT}>`);
 
-export function storeToXml({ sources, citations, settings }) {
-  return `<?xml version="1.0" encoding="UTF-8"?><${ROOT} xmlns="${NS}">${escapeXml(JSON.stringify({ sources, citations, settings }))}</${ROOT}>`;
+export function storeToXml({ sources, citations, settings }, ns = NS) {
+  return `<?xml version="1.0" encoding="UTF-8"?><${ROOT} xmlns="${ns}">${escapeXml(JSON.stringify({ sources, citations, settings }))}</${ROOT}>`;
 }
 
 const isRecord = (x) => x !== null && typeof x === "object" && !Array.isArray(x);

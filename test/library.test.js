@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { findMarkers } from "../src/model.js";
-import { parseLibrary, parseBibtex, parseRis, latexToText, bibNames, mergeItems, makeKey, fold } from "../src/library.js";
+import { parseLibrary, parseBibtex, parseRis, latexToText, bibNames, mergeItems, makeKey, fold, exportLibrary } from "../src/library.js";
 
 test("LaTeX accents, symbols and markup become text", () => {
   assert.equal(latexToText("M{\\\"u}ller and Stra\\ss{}e"), "Müller and Straße");
@@ -103,4 +103,14 @@ test("merging keeps keys of known works and updates them", () => {
   const fix = mergeItems({ k: { id: "k", title: "Typo" } }, [{ id: "k", title: "Fixed" }]);
   assert.deepEqual(fix.library, { k: { id: "k", title: "Fixed" } });
   for (const [k, v] of Object.entries(r.library)) assert.equal(v.id, k);
+});
+
+test("exported sources import back as they were", () => {
+  const sources = {
+    a: { id: "a", type: "article-journal", title: "T & <U>", author: [{ family: "A", given: "An" }], issued: { "date-parts": [[2020]] } },
+    b: { id: "b", type: "book", title: "B", publisher: "P" },
+  };
+  const { name, text } = exportLibrary(sources);
+  assert.equal(name, "siglum-sources.json");
+  assert.deepEqual(Object.fromEntries(parseLibrary(text, name).map((x) => [x.id, x])), sources);
 });

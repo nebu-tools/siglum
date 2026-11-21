@@ -38,6 +38,13 @@
         <input id="ident" type="text" placeholder="DOI or PMID" data-i18n-placeholder="lookup.placeholder" aria-label="DOI or PMID" data-i18n-aria-label="lookup.placeholder">
         <button type="submit" data-i18n="lookup.submit">Fetch</button>
       </form>
+      <div class="actions">
+        <button id="exportLib" type="button" data-i18n="sources.export">Download sources (.json)</button>
+      </div>
+      <div class="unlink">
+        <span data-i18n="sources.unlinkHint">Keeps the text, removes citations and sources. Download them first to keep them.</span>
+        <button id="unlink" type="button" data-i18n="sources.unlink">Remove Siglum from this document</button>
+      </div>
     </details>
     <details class="settings">
       <summary data-i18n="settings">Settings</summary>
@@ -52,6 +59,10 @@
       </label>
     </details>
     <p id="status" class="status" role="status" aria-live="polite"></p>
+    <div id="restore" class="restore" hidden>
+      <span data-i18n="restore.explain">The saved data is damaged, but a backup exists.</span>
+      <button id="restoreDo" type="button" data-i18n="restore.restore">Restore backup</button>
+    </div>
   </main>
   <script src="taskpane.js"></script>
 </body>

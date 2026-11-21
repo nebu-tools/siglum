@@ -5,7 +5,7 @@
 /* global Word */
 
 import {
-  NS, CITE_PREFIX, BIB_TAG, CITE_NEW,
+  NS, BACKUP_NS, CITE_PREFIX, BIB_TAG, CITE_NEW,
   emptyStore, storeToXml, storeFromXml, newId, citeTitle, findMarkers, mayTouch, plan, paragraphsOf, resolveStyle,
 } from "./model.js";
 import { documentText, UserError } from "./messages.js";
@@ -28,21 +28,35 @@ function citationControls(context) {
 
 // The store's custom XML part, as openStore found it in a request context.
 const storePart = new WeakMap();
+// The backup's custom XML part, likewise.
+const backupPart = new WeakMap();
 
 /**
  * Queues the store's save. It is written with the next sync; queue it with
  * other writes to save a round trip. `save` syncs at once.
+ *
+ * The backup goes in the same batch: the last saved store survives a damaged
+ * main part. Saved stores always parse, so rotating needs no extra read.
  */
 async function queueStore(context, store) {
   let part = storePart.get(context);
-  if (part === undefined) {
+  let backup = backupPart.get(context);
+  if (part === undefined || backup === undefined) {
     const parts = context.document.customXmlParts.getByNamespace(NS);
+    const backups = context.document.customXmlParts.getByNamespace(BACKUP_NS);
     parts.load("items");
+    backups.load("items");
     await context.sync();
     part = parts.items[0] ?? null;
+    backup = backups.items[0] ?? null;
+    storePart.set(context, part);
+    backupPart.set(context, backup);
   }
+  const backupXml = storeToXml(store, BACKUP_NS);
   if (part) part.setXml(storeToXml(store));
   else storePart.set(context, context.document.customXmlParts.add(storeToXml(store)));
+  if (backup) backup.setXml(backupXml);
+  else backupPart.set(context, context.document.customXmlParts.add(backupXml));
 }
 
 async function saveStore(context, store) {
@@ -63,6 +77,69 @@ export async function openStore(context, session) {
   const xml = parts.items[0].getXml();
   await context.sync();
   return storeFromXml(xml.value);
+}
+
+/**
+ * Health of the store and its backup: each is "ok", "missing", or "broken"
+ * (present but unreadable). The pane offers a restore exactly when the main
+ * store is not ok but the backup is.
+ */
+export async function backupStatus(context) {
+  const statusOf = async (ns) => {
+    const parts = context.document.customXmlParts.getByNamespace(ns);
+    parts.load("items");
+    await context.sync();
+    if (!parts.items.length) return "missing";
+    const xml = parts.items[0].getXml();
+    await context.sync();
+    try {
+      storeFromXml(xml.value);
+      return "ok";
+    } catch {
+      return "broken";
+    }
+  };
+  return { main: await statusOf(NS), backup: await statusOf(BACKUP_NS) };
+}
+
+/**
+ * Replaces a missing or unreadable store with the backup and brings the
+ * document up to date. Throws when there is no backup to restore.
+ */
+export async function restoreBackup(context, session) {
+  const backups = context.document.customXmlParts.getByNamespace(BACKUP_NS);
+  backups.load("items");
+  await context.sync();
+  const backup = backups.items[0];
+  if (!backup) throw new UserError("error.noBackup");
+  const xml = backup.getXml();
+  await context.sync();
+  const store = storeFromXml(xml.value);
+  const mains = context.document.customXmlParts.getByNamespace(NS);
+  mains.load("items");
+  await context.sync();
+  if (mains.items[0]) mains.items[0].setXml(storeToXml(store));
+  else context.document.customXmlParts.add(storeToXml(store));
+  return refresh(context, session, { store });
+}
+
+/**
+ * Removes Siglum from the document: our content controls keep their text
+ * but lose the controls, and the store and its backup go with them. A
+ * refresh afterwards writes nothing.
+ */
+export async function unlinkDocument(context, session) {
+  const parts = [NS, BACKUP_NS].map((ns) => context.document.customXmlParts.getByNamespace(ns));
+  for (const p of parts) p.load("items");
+  await context.sync();
+  for (const p of parts) for (const part of p.items) part.delete();
+  const all = context.document.body.contentControls;
+  all.load("items/tag");
+  await context.sync();
+  await writeUntracked(context, () => {
+    for (const cc of all.items) if (isOurs(cc)) cc.delete(true);
+  });
+  return refresh(context, session);
 }
 
 /**
