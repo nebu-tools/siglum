@@ -7,7 +7,7 @@ import deDE from "../csl/locales-de-DE.xml";
 import enUS from "../csl/locales-en-US.xml";
 import { createRenderer } from "./render.js";
 import { parseSupplement, LABELS, STYLES, resolveStyle } from "./model.js";
-import { parseLibrary, mergeItems, year } from "./library.js";
+import { parseLibrary, mergeItems, exportLibrary, year } from "./library.js";
 import { buildIndex, search } from "./search.js";
 import { lookup } from "./lookup.js";
 import { LANGUAGES, pickLanguage, translator, UserError } from "./messages.js";
@@ -331,12 +331,24 @@ const queue = createQueue({
       showStatus();
     } else if (type === "done") {
       if (detail?.store) setStore(detail.store);
+      if (detail?.error) probeBackup();
       document.dispatchEvent(new CustomEvent("siglum:done", { detail: detail?.error ? { error: errorText(detail.error) } : detail }));
     } else {
       document.dispatchEvent(new CustomEvent("siglum:settled"));
     }
   },
 });
+
+/** Shows the restore section exactly when the store is unreadable or gone. */
+async function probeBackup() {
+  let status = null;
+  try {
+    await Word.run(async (c) => { status = await doc.backupStatus(c); });
+  } catch {
+    status = null;
+  }
+  $("restore").hidden = !(status && status.main !== "ok" && status.backup === "ok");
+}
 
 /** Runs a document operation through the queue. Its note, if any, replaces the last one's. */
 function op(fn) {
@@ -427,6 +439,28 @@ function wire() {
     const r = await op((c) => doc.editCitation(c, session, editing.id, []));
     if (!r) return;
     hideEditor();
+  });
+  $("exportLib").addEventListener("click", () => {
+    const { name, text } = exportLibrary(state.library);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  $("unlink").addEventListener("click", async () => {
+    const r = await op((c) => doc.unlinkDocument(c, session));
+    if (!r) return;
+    $("restore").hidden = true;
+  });
+  $("restoreDo").addEventListener("click", async () => {
+    const store = await op((c) => doc.restoreBackup(c, session));
+    if (!store) return;
+    useStyle(store.settings.style);
+    const r = await op((c) => doc.refresh(c, session, { store }));
+    if (!r) return;
+    note(() => t("status.restored"));
+    $("restore").hidden = true;
   });
   $("file").addEventListener("change", (e) => { importFiles([...e.target.files]); e.target.value = ""; });
   $("lookup").addEventListener("submit", (e) => { e.preventDefault(); fetchIdent($("ident").value); });

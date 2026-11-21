@@ -7,7 +7,7 @@ import {
   post, $, sleep, command, word, nextDone, done, settledEvents, onReady, idle, key, pick, refresh,
   isCite, isBib, controls, citeTexts, bibTexts, readStore, trackedChanges, setTracking, cursorAfter,
 } from "./pane.js";
-import { CITE_PREFIX } from "../src/model.js";
+import { CITE_PREFIX, NS } from "../src/model.js";
 
 const results = [];
 function check(name, ok, detail) {
@@ -918,6 +918,61 @@ async function edit() {
   await consistent("an edited document stays consistent");
 }
 
+// ---- a damaged store, its backup, and unlinking --------------------------------
+// The fixture holds two citations. Citing once more saves the store and rotates
+// the backup; damaging the main part then offers a restore, and unlinking
+// removes everything but the text.
+
+async function library() {
+  const fresh = await unused();
+  await cursorAtStart();
+  let d = nextDone();
+  pick(fresh[0]);
+  await d;
+  await idle();
+  const numbered = await citeTexts();
+  check("citing works in the library scenario", numbered.length > 0 && numbered[0] === "[1]", numbered);
+  await consistent("a cited document stays consistent");
+  // Damaging the stored XML makes refreshes fail and offers a restore.
+  await word(async (c) => {
+    const ps = c.document.customXmlParts.getByNamespace(NS);
+    ps.load("items");
+    await c.sync();
+    if (!ps.items.length) throw new Error("no store part to damage");
+    ps.items[0].setXml('<siglum xmlns="urn:siglum:store:1"><oops/></siglum>');
+    await c.sync();
+    return ps.items.length;
+  });
+  d = nextDone();
+  $("refresh").click();
+  const broken = await d;
+  await idle();
+  check("a damaged store fails refreshes", !!broken?.error, broken && { error: !!broken.error });
+  check("a damaged store offers its backup", !$("restore").hidden, $("restore").hidden);
+  d = nextDone();
+  $("restoreDo").click();
+  const restored = await d;
+  const fixed = await nextDone();
+  await idle();
+  check("restoring brings the citations back", !restored?.error && !fixed?.error && same(await citeTexts(), numbered), { restored: !restored?.error, cites: await citeTexts() });
+  await consistent("a restored document stays consistent");
+  // Unlinking removes the controls and the store but keeps the text.
+  d = nextDone();
+  $("unlink").click();
+  await d;
+  await idle();
+  check("unlinking removes the citations", (await citeTexts()).length === 0, await citeTexts());
+  const kept = await word(async (c) => {
+    const r = c.document.body.search(numbered[0], { matchCase: true });
+    r.load("items");
+    await c.sync();
+    return r.items.length;
+  });
+  check("unlinking keeps the citation texts", kept > 0, kept);
+  check("unlinking removes the store", (await readStore()).parts === 0, await readStore());
+  await consistent("an unlinked document stays consistent");
+}
+
 // ---- switching the citation style -------------------------------------------
 
 async function style() {
@@ -1028,7 +1083,7 @@ async function fastpath() {
   await consistent("a fast document with a thread read leaves a consistent document");
 }
 
-const SCENARIOS = { renumber, "renumber-reopen": renumberReopen, fastpath, edit, style, main, "main-reopen": mainReopen, template, "template-reopen": templateReopen, markers, sections, "sections-reopen": sectionsReopen };
+const SCENARIOS = { renumber, "renumber-reopen": renumberReopen, fastpath, edit, style, library, main, "main-reopen": mainReopen, template, "template-reopen": templateReopen, markers, sections, "sections-reopen": sectionsReopen };
 
 onReady(async () => {
   const { scenario } = await (await fetch("e2e-config.json", { cache: "no-store" })).json();

@@ -15,6 +15,11 @@ function fromCslJson(data) {
   return list.filter((x) => x && typeof x === "object").map((x) => ({ ...x, id: x.id == null ? undefined : String(x.id) }));
 }
 
+/** The document's sources as a CSL-JSON file download: {name, text}. */
+export function exportLibrary(sources) {
+  return { name: "siglum-sources.json", text: JSON.stringify(Object.values(sources), null, 2) + "\n" };
+}
+
 // ---- BibTeX -----------------------------------------------------------------
 
 const BIB_TYPES = {

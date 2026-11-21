@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { refresh, readControls, editCitation, citationAtCursor, setStyle, openStore } from "../src/word.js";
+import { refresh, readControls, editCitation, citationAtCursor, setStyle, openStore, backupStatus, restoreBackup, unlinkDocument } from "../src/word.js";
 import { createRenderer } from "../src/render.js";
 import { UserError } from "../src/messages.js";
 import { fastEligible, FAST_CITES_MIN } from "../src/fast.js";
 import { controlTexts } from "../src/ooxml.js";
-import { CITE_PREFIX, BIB_TAG, storeFromXml } from "../src/model.js";
+import { CITE_PREFIX, BIB_TAG, NS, storeFromXml } from "../src/model.js";
 import { markup, bodyPackage } from "./ooxml-fixtures.js";
 
 const { sdt, r, p } = markup();
@@ -42,7 +42,6 @@ function context(n, { mode = "Off", tracked = 0, bookmark = "", corrupt = null, 
   const bibWrites = [];
   const order = [];
   const savedStores = [];
-  let currentStore = null;
   const parts = [];
   let selected = null;
   let queue = [];
@@ -80,16 +79,19 @@ function context(n, { mode = "Off", tracked = 0, bookmark = "", corrupt = null, 
       load() {},
       get contentControls() { return { items: [], load() {} }; },
       get customXmlParts() {
+        const nsOf = (xml) => /xmlns="([^"]+)"/.exec(xml)?.[1] ?? "";
         return {
-          getByNamespace() { return { load() {}, items: parts }; },
+          getByNamespace(ns) { return { load() {}, items: parts.filter((p) => p.ns === ns) }; },
           add(xml) {
-            savedStores.push(xml);
-            currentStore = xml;
             const part = {
+              ns: nsOf(xml),
+              xml,
               load() {},
-              setXml(x) { savedStores.push(x); currentStore = x; },
-              getXml() { const y = {}; later(() => { y.value = currentStore; }); return y; },
+              setXml(x) { savedStores.push(x); part.xml = x; },
+              getXml() { const y = {}; later(() => { y.value = part.xml; }); return y; },
+              delete() { const i = parts.indexOf(part); if (i >= 0) parts.splice(i, 1); },
             };
+            savedStores.push(xml);
             parts.push(part);
             return part;
           },
@@ -140,7 +142,7 @@ function context(n, { mode = "Off", tracked = 0, bookmark = "", corrupt = null, 
       q.forEach((f) => f());
     },
   };
-  return { ctx, backing, perControlInsert, insertedPackages, deleted, bibWrites, order, savedStores, items, select(id) { selected = id; } };
+  return { ctx, backing, perControlInsert, insertedPackages, deleted, bibWrites, order, savedStores, items, parts, select(id) { selected = id; } };
 }
 
 test("fastEligible: only untracked, cites-only, large renumbers", () => {
@@ -265,8 +267,7 @@ test("a rewritten bibliography goes first, then the rest go in one body write", 
   assert.equal(r.fast, true);
 });
 
-test("a refresh with nothing to write reports no body write", async () => {
-  const { ctx, backing, insertedPackages, perControlInsert } = context(3);
+test("a refresh with nothing to write reports no body write", async () => {  const { ctx, backing, insertedPackages, perControlInsert } = context(3);
   backing[0] = "[1]";
   backing[1] = "[2]";
   backing[2] = "[3]";
@@ -347,4 +348,44 @@ test("setStyle stores the document's style, unknown falls back to NLM", async ()
   assert.equal((await openStore(ctx, realSession)).settings.style, "apa");
   await setStyle(ctx, realSession, "chicago");
   assert.equal(storeFromXml(savedStores.at(-1)).settings.style, "nlm");
+});
+
+test("backupStatus reports missing, ok and broken parts", async () => {
+  const { ctx, parts } = context(1);
+  assert.deepEqual(await backupStatus(ctx), { main: "missing", backup: "missing" });
+  await editCitation(ctx, realSession, "1", [{ id: "a" }], { store: realStore({ 1: [{ id: "a" }] }) });
+  assert.deepEqual(await backupStatus(ctx), { main: "ok", backup: "ok" });
+  parts.find((p) => p.ns === "urn:siglum:store:1").setXml('<siglum xmlns="urn:siglum:store:1"><oops/></siglum>');
+  assert.deepEqual(await backupStatus(ctx), { main: "broken", backup: "ok" });
+});
+
+test("a damaged store restores from the backup", async () => {
+  const { ctx, backing, parts } = context(2);
+  const store = realStore({ 1: [{ id: "a" }], 2: [{ id: "b", locator: "7", label: "page" }] });
+  await editCitation(ctx, realSession, "2", store.citations["2"], { store });
+  assert.equal(backing[1], "[2, p. 7]");
+  parts.find((p) => p.ns === NS).setXml(`<siglum xmlns="${NS}"><oops/></siglum>`);
+  const restored = await restoreBackup(ctx, realSession);
+  assert.deepEqual(restored.citations, store.citations);
+  const r = await refresh(ctx, realSession, { store: restored });
+  assert.equal(r.work, null);
+  assert.deepEqual(backing, ["[1]", "[2, p. 7]"]);
+  assert.deepEqual(await backupStatus(ctx), { main: "ok", backup: "ok" });
+});
+
+test("restoring without a backup fails", async () => {
+  const { ctx } = context(1);
+  await assert.rejects(restoreBackup(ctx, realSession), (e) => e instanceof UserError && e.key === "error.noBackup");
+});
+
+test("unlink removes the controls and the store but keeps the text", async () => {
+  const { ctx, backing, deleted, parts } = context(2);
+  await editCitation(ctx, realSession, "1", [{ id: "a" }], { store: realStore({ 1: [{ id: "a" }], 2: [{ id: "b" }] }) });
+  assert.deepEqual(backing, ["[1]", "[2]"]);
+  const r = await unlinkDocument(ctx, realSession);
+  assert.deepEqual(deleted, [0, 1]);
+  assert.deepEqual(parts, []);
+  assert.equal(r.work, null);
+  assert.deepEqual(backing, ["[1]", "[2]"]);
+  assert.deepEqual(await backupStatus(ctx), { main: "missing", backup: "missing" });
 });
