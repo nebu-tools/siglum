@@ -355,7 +355,7 @@ test("backupStatus reports missing, ok and broken parts", async () => {
   assert.deepEqual(await backupStatus(ctx), { main: "missing", backup: "missing" });
   await editCitation(ctx, realSession, "1", [{ id: "a" }], { store: realStore({ 1: [{ id: "a" }] }) });
   assert.deepEqual(await backupStatus(ctx), { main: "ok", backup: "ok" });
-  parts.find((p) => p.ns === "urn:siglum:store:1").setXml('<siglum xmlns="urn:siglum:store:1"><oops/>');
+  parts.find((p) => p.ns === "urn:siglum:store:1").setXml('<siglum xmlns="urn:siglum:store:1"><oops/></siglum>');
   assert.deepEqual(await backupStatus(ctx), { main: "broken", backup: "ok" });
 });
 
@@ -364,7 +364,7 @@ test("a damaged store restores from the backup", async () => {
   const store = realStore({ 1: [{ id: "a" }], 2: [{ id: "b", locator: "7", label: "page" }] });
   await editCitation(ctx, realSession, "2", store.citations["2"], { store });
   assert.equal(backing[1], "[2, p. 7]");
-  parts.find((p) => p.ns === NS).setXml(`<siglum xmlns="${NS}"><oops/>`);
+  parts.find((p) => p.ns === NS).setXml(`<siglum xmlns="${NS}"><oops/></siglum>`);
   const restored = await restoreBackup(ctx, realSession);
   assert.deepEqual(restored.citations, store.citations);
   const r = await refresh(ctx, realSession, { store: restored });

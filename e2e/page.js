@@ -939,7 +939,7 @@ async function library() {
     ps.load("items");
     await c.sync();
     if (!ps.items.length) throw new Error("no store part to damage");
-    ps.items[0].setXml('<siglum xmlns="urn:siglum:store:1"><oops/>');
+    ps.items[0].setXml('<siglum xmlns="urn:siglum:store:1"><oops/></siglum>');
     await c.sync();
     return ps.items.length;
   });
